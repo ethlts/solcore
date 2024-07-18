@@ -3,7 +3,9 @@ module Solcore.Desugarer.Specialise(specialiseCompUnit) where
 Create specialised versions of polymorphic and overloaded (TODO) functions.
 This is meant to be run on typed and defunctionalised code, so no higher-order functions.
 -}
+
 import Control.Monad
+import Control.Monad.Reader
 import Control.Monad.State
 import Data.List(intercalate)
 import qualified Data.Map as Map
@@ -34,21 +36,38 @@ data SpecState = SpecState
   , spGlobalEnv :: TcEnv
   , splocalEnv :: Table Ty
   , spSubst :: Subst
+  , spDebug :: Bool
   }
 
-type SM a = StateT SpecState IO a
+
+type SM = StateT SpecState IO
+
+getDebug :: SM Bool
+getDebug = gets spDebug
+
+withDebug m = do
+    savedDebug <- getDebug
+    modify $ \s -> s { spDebug = True }
+    a <- m
+    modify $ \s -> s { spDebug = savedDebug }
+    return a
+
+whenDebug m = do
+    debug <- getDebug
+    when debug m
+
 runSM :: SM a -> TcEnv -> IO a
 runSM m env = evalStateT m (initSpecState env)
 
-writeln :: MonadIO m => String -> m ()
-writeln = liftIO  . putStrLn
-writes :: MonadIO m => [String] -> m ()
+writeln :: String -> SM ()
+writeln = whenDebug . liftIO  . putStrLn
+writes :: [String] -> SM ()
 writes = writeln . concat
 errors = error . concat
 
 panics :: MonadIO m => [String] -> m a
 panics msgs = do
-    writes ("PANIC: ":msgs)
+    liftIO $ putStrLn $ concat ("PANIC: ":msgs)
     liftIO exitFailure
 
 -- | `withLocalState` runs a computation with a local state
@@ -70,6 +89,7 @@ initSpecState env = SpecState
     , spGlobalEnv = env
     , splocalEnv = emptyTable
     , spSubst = emptySubst
+    , spDebug = False
     }
 
 addSpecialisation :: Name -> TcFunDef -> SM ()
