@@ -47,8 +47,14 @@ instance Show Stmt where show = render . pretty
 
 data Alt = Alt Name Stmt
 
+data Contract = Contract { ccName :: Name, ccStmts ::  [Stmt] }
+
 newtype Core = Core [Stmt]
 instance Show Core where show = render . pretty
+instance Show Contract where show = render . pretty
+
+instance Pretty Contract where
+    pretty (Contract n stmts) = text "contract" <+> text n <+> lbrace $$ nest 4 (vcat (map pretty stmts)) $$ rbrace
 
 instance Pretty Type where
     pretty TWord = text "word"

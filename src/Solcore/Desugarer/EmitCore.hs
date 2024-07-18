@@ -1,5 +1,4 @@
 module Solcore.Desugarer.EmitCore(emitCore) where
-import Language.Core(Core(..))
 import Language.Core qualified as Core
 import Data.Map qualified as Map
 import Control.Monad(forM)
@@ -18,17 +17,20 @@ import Solcore.Frontend.TypeInference.TcUnify
 import Solcore.Primitives.Primitives
 import System.Exit
 
-emitCore :: CompUnit Id -> IO [Core]
-emitCore cu = mapM emitTopDecl (contracts cu)
+emitCore :: CompUnit Id -> IO [Core.Contract]
+emitCore cu = concat <$> mapM emitTopDecl (contracts cu)
 
-emitTopDecl :: TopDecl Id -> IO Core
-emitTopDecl (TContr c) = emitContract c
-emitTopDecl _ = return (Core [])
+emitTopDecl :: TopDecl Id -> IO [Core.Contract]
+emitTopDecl (TContr c) = fmap pure (emitContract c)
+emitTopDecl _ = pure []
 
-emitContract :: Contract Id -> IO Core
+emitContract :: Contract Id -> IO Core.Contract
 emitContract c = do
-    writes ["Emitting core for contract ", show (name c)]
-    pure (Core [])
+    let cname = show (name c)
+    writes ["Emitting core for contract ", cname]
+    let result = Core.Contract cname []
+    writeln (show result)
+    pure result
 
 writeln :: MonadIO m => String -> m ()
 writeln = liftIO . putStrLn
