@@ -11,7 +11,8 @@ import Solcore.Frontend.Pretty.SolcorePretty
 import Solcore.Frontend.TypeInference.SccAnalysis
 import Solcore.Frontend.TypeInference.TcContract
 import Solcore.Frontend.TypeInference.TcEnv
-import Solcore.Desugarer.Specialise
+import Solcore.Desugarer.Specialise(specialiseCompUnit)
+import Solcore.Desugarer.EmitCore(emitCore)
 
 -- main compiler driver function
 
@@ -34,7 +35,9 @@ pipeline = do
           r5 <- specialiseCompUnit res env
           putStrLn "Specialised contract:"
           putStrLn (pretty r5)
+          r6 <- emitCore r5
           return ()
+
 withErr :: Either String a -> (a -> IO ()) -> IO ()
 withErr r f = either putStrLn f r
 
