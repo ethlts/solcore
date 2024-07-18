@@ -35,7 +35,8 @@ pipeline = do
           r5 <- specialiseCompUnit res env
           putStrLn "Specialised contract:"
           putStrLn (pretty r5)
-          r6 <- emitCore r5
+          let debugp = optVerbose opts
+          r6 <- emitCore debugp env r5
           return ()
 
 withErr :: Either String a -> (a -> IO ()) -> IO ()
