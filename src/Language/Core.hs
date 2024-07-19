@@ -99,3 +99,7 @@ instance Pretty Arg where
 
 instance Pretty Core where
     pretty (Core stmts) = vcat (map pretty stmts)
+
+
+instance Pretty [Stmt] where
+    pretty stmts = vcat (map pretty stmts)
