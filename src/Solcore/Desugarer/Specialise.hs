@@ -33,6 +33,7 @@ data SpecState = SpecState
   { spResTable :: Table [Resolution]
   , specTable :: Table TcFunDef
   , spTypeTable :: Table TypeInfo
+  , spDataTable :: Table DataTy
   , spGlobalEnv :: TcEnv
   , splocalEnv :: Table Ty
   , spSubst :: Subst
@@ -86,6 +87,7 @@ initSpecState env = SpecState
     { spResTable = emptyTable
     , specTable = emptyTable
     , spTypeTable = typeTable env
+    , spDataTable = Map.empty
     , spGlobalEnv = env
     , splocalEnv = emptyTable
     , spSubst = emptySubst
@@ -125,6 +127,10 @@ extSpSubst subst = modify $ \s -> s { spSubst = subst <> spSubst s }
 
 atCurrentSubst :: HasType a => a -> SM a
 atCurrentSubst a = flip apply a <$> getSpSubst
+
+addData :: DataTy -> SM ()
+addData dt = modify (\s -> s { spDataTable = Map.insert (dataName dt) dt (spDataTable s) })
+
 -------------------------------------------------------------------------------
 
 specialiseCompUnit :: CompUnit Id -> TcEnv -> IO (CompUnit Id)
@@ -139,7 +145,9 @@ addGlobalResolutions compUnit = forM_ (contracts compUnit) addDeclResolutions
 addDeclResolutions :: TopDecl Id -> SM ()
 addDeclResolutions (TInstDef inst) = addInstResolutions inst
 addDeclResolutions (TFunDef fd) = addFunDefResolution fd
+addDeclResolutions (TDataDef dt) = addData dt
 addDeclResolutions _ = return ()
+
 
 addInstResolutions :: Instance Id -> SM ()
 addInstResolutions inst = forM_ (instFunctions inst) (addMethodResolution (mainTy inst))
@@ -149,7 +157,10 @@ specialiseContract (TContr (Contract name args decls)) = withLocalState do
     addContractResolutions (Contract name args decls)
     forM_ entries specEntry
     st <- gets specTable
-    let decls' = map (CFunDecl . snd) (Map.toList st)
+    dt <- gets spDataTable
+    let dataDecls = map (CDataDecl . snd) (Map.toList dt)
+    let funDecls = map (CFunDecl . snd) (Map.toList st)
+    let decls' = dataDecls ++ funDecls
     return (TContr (Contract name args decls'))
     where
       entries = ["main"]    -- Eventually all public methods
@@ -174,6 +185,7 @@ addContractResolutions (Contract name args decls) = do
 
 addCDeclResolution :: ContractDecl Id -> SM ()
 addCDeclResolution (CFunDecl fd) = addFunDefResolution fd
+addCDeclResolution (CDataDecl dt) = addData dt
 addCDeclResolution _ = return ()
 
 addFunDefResolution fd = do
