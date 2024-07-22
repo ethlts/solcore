@@ -60,7 +60,9 @@ emitContract c = do
     coreBody <- concatMapM emitCDecl (decls c)
     let result = Core.Contract cname coreBody
     writeln (show result)
-    let filename = cname ++ ".core"
+    -- let filename = cname ++ ".core"
+    -- use output.core for now to make testing easier
+    let filename = "output.core"
     writeln ("Writing to " ++ filename)
     liftIO $ writeFile filename (show result)
     pure result
@@ -71,15 +73,32 @@ emitCDecl _ = pure []
 
 emitFunDef :: FunDef Id -> EM [Core.Stmt]
 emitFunDef (FunDef sig body) = do
-  (name, arg, typ) <- translateSig sig
+  (name, args, typ) <- translateSig sig
   coreBody <- concatMapM emitStmt body
-  return coreBody
+  let coreFun = Core.SFunction name args typ coreBody
+  return [coreFun]
 
 translateSig :: Signature Id -> EM (CoreName, [Core.Arg], Core.Type)
-translateSig sig@(Signature n ctxt args ret) = do
+translateSig sig@(Signature n ctxt args (Just ret)) = do
+  typeTable <- gets ecTT
   debug ["translateSig ", show sig]
-  let name = show n
-  return (name, [], Core.TWord)
+  let name = unName n
+  let coreTyp = translateType typeTable ret
+  let coreArgs = map (translateArg typeTable) args
+  return (name, coreArgs, coreTyp)
+translateSig sig = errors ["No return type in ", show sig]
+
+translateArg :: TypeTable -> Param Id -> Core.Arg
+translateArg tt (Typed x t) = Core.TArg (unwrapId x) (translateType tt t)
+translateArg tt (Untyped (Id n t)) = Core.TArg (unName n) (translateType tt t)
+
+translateType :: TypeTable -> Ty -> Core.Type
+translateType _ (TyCon "Word" []) = Core.TWord
+-- translateType _ Fun.TBool = Core.TBool
+translateType _ (TyCon "Unit" []) = Core.TUnit
+translateType _ t@(u :-> v) = error ("Cannot translate function type " ++ show t)
+-- translateType tt (TyCon name tas) = translateTCon tt name tas
+
 
 emitLit :: Literal -> Core.Expr
 emitLit (IntLit i) = Core.EWord i
@@ -87,6 +106,16 @@ emitLit (StrLit s) = error "String literals not supported yet"
 
 emitExp :: Exp Id -> Translation Core.Expr
 emitExp (Lit l) = pure (emitLit l, [])
+emitExp (Var x) = do
+    subst <- gets ecSubst
+    case Map.lookup (idName x) subst of
+        Just e -> pure (e, [])
+        Nothing -> pure(Core.EVar (unwrapId x), [])
+emitExp (Call Nothing f as) = do
+    (coreArgs, codes) <- unzip <$> mapM emitExp as
+    let call =  Core.ECall (unwrapId f) coreArgs
+    pure (call, concat codes)
+emitExp e = errors ["emitExp not implemented for: ", pretty e, "\n", show e]
 
 emitStmt :: Stmt Id -> EM [Core.Stmt]
 emitStmt (StmtExp e) = do
@@ -113,3 +142,7 @@ debug msg = do
 
 concatMapM :: (Traversable t, Monad f) => (a -> f [b]) -> t a -> f [b]
 concatMapM f xs = concat <$> mapM f xs
+
+
+unwrapId :: Id -> String
+unwrapId = unName . idName
