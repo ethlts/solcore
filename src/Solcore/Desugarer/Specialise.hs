@@ -57,8 +57,13 @@ whenDebug m = do
     debug <- getDebug
     when debug m
 
-runSM :: SM a -> TcEnv -> IO a
-runSM m env = evalStateT m (initSpecState env)
+debug :: [String] -> SM ()
+debug msg = do
+    enabled <- getDebug
+    when enabled $ writes msg
+
+runSM :: Bool -> TcEnv -> SM a -> IO a
+runSM debugp env m = evalStateT m (initSpecState debugp env)
 
 writeln :: String -> SM ()
 writeln = whenDebug . liftIO  . putStrLn
@@ -72,7 +77,7 @@ panics msgs = do
     liftIO exitFailure
 
 -- | `withLocalState` runs a computation with a local state
--- local changes are discarded, with te exception of the `specTable`
+-- local changes are discarded, with the exception of the `specTable`
 withLocalState :: SM a -> SM a
 withLocalState m = do
     s <- get
@@ -82,8 +87,8 @@ withLocalState m = do
     modify $ \s -> s { specTable = spTable }
     return a
 
-initSpecState :: TcEnv -> SpecState
-initSpecState env = SpecState
+initSpecState :: Bool ->TcEnv -> SpecState
+initSpecState debugp env = SpecState
     { spResTable = emptyTable
     , specTable = emptyTable
     , spTypeTable = typeTable env
@@ -91,7 +96,7 @@ initSpecState env = SpecState
     , spGlobalEnv = env
     , splocalEnv = emptyTable
     , spSubst = emptySubst
-    , spDebug = False
+    , spDebug = debugp
     }
 
 addSpecialisation :: Name -> TcFunDef -> SM ()
@@ -115,7 +120,7 @@ lookupResolution name ty = gets (Map.lookup name . spResTable) >>= findMatch ty 
   firstMatch etyp [] = return Nothing
   firstMatch etyp ((t,e):rest)
     | Right subst <- mgu t etyp = do  -- TESTME: match is to weak for MPTC, but isn't mgu too strong?
-        writes ["! lookupRes - match found for ", str name, ": ", str t, " ~ ", str etyp, " => ", str subst]
+        debug ["! lookupRes - match found for ", str name, ": ", str t, " ~ ", str etyp, " => ", str subst]
         return (Just (e, t, subst))
     | otherwise = firstMatch etyp rest
 
@@ -125,6 +130,9 @@ getSpSubst = gets spSubst
 extSpSubst :: Subst -> SM ()
 extSpSubst subst = modify $ \s -> s { spSubst = subst <> spSubst s }
 
+restrictSpSubst :: [Tyvar] -> SM ()
+restrictSpSubst ns = modify prune where
+    prune s = s { spSubst = restrict (spSubst s) ns   }
 atCurrentSubst :: HasType a => a -> SM a
 atCurrentSubst a = flip apply a <$> getSpSubst
 
@@ -133,8 +141,8 @@ addData dt = modify (\s -> s { spDataTable = Map.insert (dataName dt) dt (spData
 
 -------------------------------------------------------------------------------
 
-specialiseCompUnit :: CompUnit Id -> TcEnv -> IO (CompUnit Id)
-specialiseCompUnit compUnit env = flip runSM env do
+specialiseCompUnit :: CompUnit Id -> Bool -> TcEnv -> IO (CompUnit Id)
+specialiseCompUnit compUnit debugp env = runSM debugp env do
     addGlobalResolutions compUnit
     contracts' <- forM (contracts compUnit) specialiseContract
     return $ compUnit { contracts = contracts' }
@@ -168,12 +176,13 @@ specialiseContract decl = pure decl
 
 specEntry :: Name -> SM ()
 specEntry name = withLocalState do
-    let any = TyVar (TVar (Name "any"))
-    mres <- lookupResolution name any
+    let any = TVar (Name "any")
+    let anytype = TyVar any
+    mres <- lookupResolution name anytype
     case mres of
       Just (fd, ty, subst) -> do
         writes ["resolution: ", show name, " : ", pretty ty, "@", pretty subst]
-        extSpSubst subst
+        -- extSpSubst subst
         specFunDef fd
         return ()
       Nothing -> do
@@ -208,14 +217,14 @@ addMethodResolution ty fd = do
 -- | `specExp` specialises an expression to given type
 specExp :: TcExp -> Ty -> SM TcExp
 specExp e@(Call Nothing i args) ty = do
-  writes ["> specExp (Call): ", pretty e, " : ", pretty (idType i), " ~> ", pretty ty]
+  -- writes ["> specExp (Call): ", pretty e, " : ", pretty (idType i), " ~> ", pretty ty]
   (i', args') <- specCall i args ty
   let e' = Call Nothing i' args'
-  writes ["< specExp (Call): ", pretty e']
+  -- writes ["< specExp (Call): ", pretty e']
   return e'
 
 specExp e ty = do
-  writes ["> specExp: ", pretty e, " : ", pretty (typeOfTcExp e), " ~> ", pretty ty]
+  -- writes ["> specExp: ", pretty e, " : ", pretty (typeOfTcExp e), " ~> ", pretty ty]
   return e
 
 -- | Specialise a function call
@@ -273,7 +282,7 @@ specFunDef fd = withLocalState do
       let sig' = apply subst (funSignature fd)
       body' <- specBody (funDefBody fd)
       let fd' = FunDef sig'{sigName = name'} body'
-      writes ["! specFunDef: adding specialisation ", show name', " : ", pretty ty']
+      debug ["! specFunDef: adding specialisation ", show name', " : ", pretty ty']
       addSpecialisation name' fd'
       return name'
 
@@ -286,18 +295,28 @@ specStmt stmt@(Return e) = do
   let ty = typeOfTcExp e
   let ty' = apply subst ty
   case ty' of
-    TyVar _ -> panics ["specStmt(",pretty stmt,"): polymorphic return type: ",
-                        pretty ty', " subst=", pretty subst]
-    _ :-> _ -> panics ["specStmt(",pretty stmt,"): function return type: ", pretty ty']
+    TyVar _ -> panics [ "specStmt(",pretty stmt,"): polymorphic return type: "
+                      ,  pretty ty', " subst=", pretty subst]
+    _ :-> _ -> panics [ "specStmt(",pretty stmt,"): function return type: "
+                      , pretty ty']
     _ -> return ()
-  writes ["> specExp (Return): ", pretty e," : ", pretty ty, " ~> ", pretty ty']
+  -- writes ["> specExp (Return): ", pretty e," : ", pretty ty, " ~> ", pretty ty']
   e' <- specExp e ty'
-  writes ["< specExp (Return): ", pretty e']
+  -- writes ["< specExp (Return): ", pretty e']
   return $ Return e'
 specStmt (Match exps alts) = specMatch exps alts
-specStmt (Let i mty mexp) = do
+specStmt stmt@(Let i mty mexp) = do
+  subst <- getSpSubst
+  -- debug ["specStmt (Let): ", pretty i, " : ", pretty (idType i), " @ ", pretty subst]
   i' <- atCurrentSubst i
   let ty' = idType i'
+  case ty' of
+    TyVar _ -> panics ["specStmt(",pretty stmt,"): polymorphic type of "
+                      , pretty i, ": ", pretty ty'
+                      , "\nsubst=", pretty subst
+                      ]
+    _ :-> _ -> panics ["specStmt(",pretty stmt,"): function type: ", pretty ty']
+    _ -> return ()
   mty' <- atCurrentSubst mty
   case mexp of
     Nothing -> return $ Let i' mty' Nothing
@@ -311,9 +330,12 @@ specStmt stmt = errors ["specStmt not implemented for: ", show stmt]
 
 specMatch :: [Exp Id] -> [([Pat], [Stmt Id])] -> SM (Stmt Id)
 specMatch exps alts = do
+  debug ["specMatch, scrutinee: ", show exps]
   alts' <- forM alts specAlt
   return $ Match exps alts'
   where specAlt (pat, body) = do
+          debug ["specAlt, pattern: ", show pat]
+          debug ["specAlt, body: ", show body]
           body' <- specBody body
           return (pat, body')
 

@@ -20,6 +20,7 @@ pipeline :: IO ()
 pipeline = do
   opts <- argumentsParser
   content <- readFile (fileName opts)
+  let debugp = optVerbose opts
   let r1 = runAlex content parser
   withErr r1 $ \ ast -> do
     r2 <- sccAnalysis ast
@@ -32,7 +33,7 @@ pipeline = do
           when (optVerbose opts) do
             putStrLn "Desugared contract:"
             putStrLn (pretty res)
-          r5 <- specialiseCompUnit res env
+          r5 <- specialiseCompUnit res debugp env
           putStrLn "Specialised contract:"
           putStrLn (pretty r5)
           let debugp = optVerbose opts
