@@ -147,14 +147,28 @@ emitLit (IntLit i) = Core.EWord i
 emitLit (StrLit s) = error "String literals not supported yet"
 
 emitConApp :: Id -> [Exp Id] -> Translation Core.Expr
-emitConApp (Id n (TyCon tcname tas)) as = do
-  mti <- gets (Map.lookup tcname . ecDT)
-  case mti of
-    Just (DataTy _ tvs allCons) -> do
-        (prod, code) <- translateProduct as
-        let result = encodeCon n allCons prod
-        pure (result, code)
-    Nothing -> errors ["emitConApp: unknown type ", pretty tcname, "\n", show tcname]
+emitConApp con@(Id n ty) as = do
+  case targetType ty  of
+    (TyCon tcname tas) -> do
+        mti <- gets (Map.lookup tcname . ecDT)
+        case mti of
+            Just (DataTy _ tvs allCons) -> do
+                (prod, code) <- translateProduct as
+                let result = encodeCon n allCons prod
+                pure (result, code)
+            Nothing -> errors
+                [ "emitConApp: unknown type ", pretty tcname
+                , "\n", show tcname
+                , "\n", "In:", pretty baddie, "\n", show baddie
+                ] where baddie = Con con as
+    otherType -> errors
+        [ "emitConApp: not a type constructor: ", pretty otherType
+        , "\n", show otherType
+        ]
+  where
+    targetType :: Ty -> Ty
+    targetType (u :-> v) = targetType v
+    targetType t = t
 
 translateProduct :: [Exp Id] -> Translation Core.Expr
 translateProduct [] = pure (Core.EUnit, [])
