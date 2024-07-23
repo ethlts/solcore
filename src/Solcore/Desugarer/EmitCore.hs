@@ -39,6 +39,13 @@ initEcState debugp env = EcState
    , ecDebug = debugp
    }
 
+withLocalState :: EM a -> EM a
+withLocalState m = do
+    s <- get
+    a <- m
+    put s
+    return a
+
 type DataTable = Map.Map Name DataTy
 -- type DataTable = Map.Map Name TConInfo
 type TConInfo = ([Tyvar], [DConInfo]) -- type con: type vars and data cons
@@ -48,6 +55,10 @@ type DConInfo = (Name, [Ty])          -- data con: name and argument types
 type VSubst = Map.Map Name Core.Expr
 emptyVSubst :: VSubst
 emptyVSubst = Map.empty
+
+extendVSubst :: VSubst -> EM ()
+extendVSubst subst = modify extend where
+    extend s = s { ecSubst = ecSubst s <> subst }
 
 type Translation a = EM (a, [Core.Stmt])
 
@@ -88,10 +99,13 @@ emitCDecl cd@(CDataDecl dt) = do
     addData dt >> pure []
 emitCDecl cd = debug ["!! emitCDecl ", show cd] >> pure []
 
+-----------------------------------------------------------------------
+-- Translating function definitions
+-----------------------------------------------------------------------
 emitFunDef :: FunDef Id -> EM [Core.Stmt]
 emitFunDef (FunDef sig body) = do
   (name, args, typ) <- translateSig sig
-  coreBody <- concatMapM emitStmt body
+  coreBody <- emitStmts body
   let coreFun = Core.SFunction name args typ coreBody
   return [coreFun]
 
@@ -112,6 +126,10 @@ translateArg p =  Core.TArg (unName n) <$> translateType t
 getParamId :: Param Id -> Id
 getParamId (Typed i _) = i
 getParamId (Untyped i) = i
+
+-----------------------------------------------------------------------
+-- Translating types and value constructors
+-----------------------------------------------------------------------
 
 translateType :: Ty -> EM Core.Type
 translateType (TyCon "Word" []) = pure Core.TWord
@@ -183,6 +201,10 @@ encodeCon n (con:cons) e
     | constrName con == n = Core.EInl e
     | otherwise = Core.EInr (encodeCon n cons e)
 
+-----------------------------------------------------------------------
+-- Translating expressions and statements
+-----------------------------------------------------------------------
+
 emitExp :: Exp Id -> Translation Core.Expr
 emitExp (Lit l) = pure (emitLit l, [])
 emitExp (Var x) = do
@@ -206,6 +228,70 @@ emitStmt s@(Return e) = do
     let result = stmts ++ [Core.SReturn e']
     --- debug ["<  emitStmt ", show (Core.Core result)]
     return result
+{-
+emitStmt (Let i (Just ty) (Just e) ) = do
+    coreTy <- translateType ty
+    (v, estmts) <- emitExp e
+    let n = unwrapId i
+    let astmts = [Core.SAlloc n coreTy, Core.SAssign (Core.EVar n) v]
+    return (astmts ++ estmts)
+-}
+-- hack, FIXME:
+-- this is what match for prods currently looks like
+emitStmt s@(Match [scrutinee] [(pats,stmts), ([PVar _], _) ]) = do
+    (sexpr, scode) <- emitExp scrutinee
+    mcode <- translateSingleEquation sexpr (pats, stmts)
+    return (scode ++ mcode)
+
+
+emitStmt s = errors ["emitStmt not implemented for: ", pretty s, "\n", show s]
+
+emitStmts :: [Stmt Id] -> EM [Core.Stmt]
+emitStmts = concatMapM emitStmt
+
+-----------------------------------------------------------------------
+-- Pattern matching
+-----------------------------------------------------------------------
+
+{-
+After  pattern matching is desugared, we have only simple match statements:
+- only one pattern at a time
+- no nested patterns
+
+General approach to match statement translation:
+1. find scrutinee type
+2. fetch constructor list
+3. Check for catch-all case alt (opt)
+4. Build alternative map, initially containing error or catch-all
+5. Translate case alts and insert them into the alt map
+6. Build nested match statement from the map
+
+-}
+
+-- | translateSingleEquation handles the special case for product types
+-- there is only one match branch, just transform to projections
+-- takes a translated scrutinee and a single equation
+translateSingleEquation :: Core.Expr -> Equation Id -> EM [Core.Stmt]
+translateSingleEquation expr ([PCon con patargs], stmts) = withLocalState do
+    let pvars = translatePatArgs expr patargs
+    extendVSubst pvars
+    emitStmts stmts
+
+-- translate pattern arguments to a substitution, e.g.
+-- p@(Just x) ~> [x -> p]
+-- p@(Pair x y) ~> [x -> fst p, y -> snd p]
+-- p@(Triple x y z) ~> [x -> fst p, y -> fst (snd p), z -> snd (snd p)]
+translatePatArgs :: Core.Expr -> [Pat] -> VSubst
+translatePatArgs s = Map.fromList . go s where
+    go _ [] = []
+    go s [PVar n] = [(n, s)]
+    go s (PVar n:as) = let (s1, s2) = (Core.EFst s, Core.ESnd s) in
+        (n, s1) : go s2 as
+
+
+-----------------------------------------------------------------------
+-- Utility functions
+-----------------------------------------------------------------------
 
 writeln :: MonadIO m => String -> m ()
 writeln = liftIO . putStrLn
@@ -225,9 +311,8 @@ dumpDT = do
     -- debug ["Data: ", unlines (map show tis)]
     debug ["Data: ", show tis]
 
-concatMapM :: (Traversable t, Monad f) => (a -> f [b]) -> t a -> f [b]
+concatMapM :: (Monad f) => (a -> f [b]) -> [a] -> f [b]
 concatMapM f xs = concat <$> mapM f xs
-
 
 unwrapId :: Id -> CoreName
 unwrapId = unName . idName
