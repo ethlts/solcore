@@ -1,4 +1,4 @@
-module Solcore.Desugarer.Specialise(specialiseCompUnit) where
+module Solcore.Desugarer.Specialise(specialiseCompUnit, typeOfTcExp) where
 {- * Specialisation
 Create specialised versions of polymorphic and overloaded (TODO) functions.
 This is meant to be run on typed and defunctionalised code, so no higher-order functions.
@@ -222,10 +222,8 @@ specExp e@(Call Nothing i args) ty = do
   let e' = Call Nothing i' args'
   -- writes ["< specExp (Call): ", pretty e']
   return e'
-
-specExp e ty = do
-  -- writes ["> specExp: ", pretty e, " : ", pretty (typeOfTcExp e), " ~> ", pretty ty]
-  return e
+specExp e@(Var (Id n t)) ty = pure (Var (Id n ty))
+specExp e ty = atCurrentSubst e -- FIXME
 
 -- | Specialise a function call
 -- given actual arguments and the expected result type
@@ -332,14 +330,26 @@ specStmt stmt = errors ["specStmt not implemented for: ", show stmt]
 
 specMatch :: [Exp Id] -> [([Pat Id], [Stmt Id])] -> SM (Stmt Id)
 specMatch exps alts = do
-  debug ["specMatch, scrutinee: ", show exps]
+  subst <- getSpSubst
+  debug ["specMatch, scrutinee: ", show exps, " @ ", pretty subst]
+  exps' <- specScruts exps
   alts' <- forM alts specAlt
-  return $ Match exps alts'
-  where specAlt (pat, body) = do
-          debug ["specAlt, pattern: ", show pat]
-          debug ["specAlt, body: ", show body]
-          body' <- specBody body
-          return (pat, body')
+  return $ Match exps' alts'
+  where
+    specAlt (pat, body) = do
+      -- debug ["specAlt, pattern: ", show pat]
+      -- debug ["specAlt, body: ", show body]
+      body' <- specBody body
+      pat' <- atCurrentSubst pat
+      return (pat', body')
+    specScruts = mapM specScrut
+    specScrut e = do
+      subst <- getSpSubst
+      ty <- atCurrentSubst (typeOfTcExp e)
+      e' <- specExp e ty
+      debug ["specScrut: ", show e, " to ", pretty ty, " ~>", show e']
+      return e'
+
 
 specName :: Name -> [Ty] -> Name
 specName n [] = n
@@ -395,3 +405,24 @@ typeOfTcSignature sig = funtype (map typeOfTcParam $ sigParams sig) (returnType 
 typeOfTcFunDef :: TcFunDef -> Ty
 typeOfTcFunDef (FunDef sig _) = typeOfTcSignature sig
 
+instance HasType (Exp Id) where
+  apply s (Var i) = Var (apply s i)
+  apply s (Con i es) = Con (apply s i) (map (apply s) es)
+  apply s (FieldAccess e f) = FieldAccess (apply s e) f
+  apply s (Lit l) = Lit l
+  apply s (Call e i es) = Call (apply s <$> e) (apply s i) (map (apply s) es)
+  apply s (Lam ps b t) = Lam ps (apply s b) (apply s <$> t)
+
+instance HasType (Stmt Id) where
+  apply s (n := e) = apply s n := apply s e
+  apply s (Let n t e) = Let (apply s n) (apply s <$> t) (apply s <$> e)
+  apply s (StmtExp e) = StmtExp (apply s e)
+  apply s (Return e) = Return (apply s e)
+  apply s (Match es alts) = Match (map (apply s) es) (map (apply s) alts)
+  apply s (Asm y) = Asm y
+
+instance HasType (Pat Id) where
+  apply s (PVar i) = PVar (apply s i)
+  apply s (PCon i ps) = PCon (apply s i) (map (apply s) ps)
+  apply s (PLit l) = PLit l
+  apply s PWildcard = PWildcard
