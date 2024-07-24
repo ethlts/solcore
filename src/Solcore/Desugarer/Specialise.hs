@@ -298,7 +298,9 @@ specStmt stmt@(Return e) = do
     TyVar _ -> panics [ "specStmt(",pretty stmt,"): polymorphic return type: "
                       ,  pretty ty', " subst=", pretty subst]
     _ :-> _ -> panics [ "specStmt(",pretty stmt,"): function return type: "
-                      , pretty ty']
+                      , pretty ty'
+                      ,"\nIn:\n", show stmt
+                      ]
     _ -> return ()
   -- writes ["> specExp (Return): ", pretty e," : ", pretty ty, " ~> ", pretty ty']
   e' <- specExp e ty'
@@ -356,7 +358,14 @@ typeOfTcExp e@(Con i args)          = go (idType i) args where
   go (_ :-> u) (a:as) = go u as
   go _ _ = error $ "typeOfTcExp: " ++ show e
 typeOfTcExp (Lit (IntLit _))      = word --TyCon "Word" []
-typeOfTcExp (Call Nothing i args) = idType i
+typeOfTcExp exp@(Call Nothing i args) = applyTo args funTy where
+  funTy = idType i
+  applyTo [] ty = ty
+  applyTo (_:as) (_ :-> u) = applyTo as u
+  applyTo _ _ = error $ concat [ "apply ", pretty i, " : ", pretty funTy
+                       , "to", show $ map pretty args
+                       , "\nIn:\n", show exp
+                       ]
 typeOfTcExp (Lam args body (Just tb))       = funtype tas tb where
   tas = map typeOfTcParam args
 typeOfTcExp e = error $ "typeOfTcExp: " ++ show e
@@ -385,3 +394,4 @@ typeOfTcSignature sig = funtype (map typeOfTcParam $ sigParams sig) (returnType 
 
 typeOfTcFunDef :: TcFunDef -> Ty
 typeOfTcFunDef (FunDef sig _) = typeOfTcSignature sig
+
