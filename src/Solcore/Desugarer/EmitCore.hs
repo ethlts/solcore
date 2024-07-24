@@ -228,14 +228,17 @@ emitStmt s@(Return e) = do
     let result = stmts ++ [Core.SReturn e']
     --- debug ["<  emitStmt ", show (Core.Core result)]
     return result
-{-
-emitStmt (Let i (Just ty) (Just e) ) = do
+emitStmt (Let (Id name ty) mty mexp ) = do
+    let coreName = unName name
     coreTy <- translateType ty
-    (v, estmts) <- emitExp e
-    let n = unwrapId i
-    let astmts = [Core.SAlloc n coreTy, Core.SAssign (Core.EVar n) v]
-    return (astmts ++ estmts)
--}
+    let alloc = [Core.SAlloc coreName coreTy]
+    case mexp of
+        Just e -> do
+            (v, estmts) <- emitExp e
+            let assign = [Core.SAssign (Core.EVar coreName) v]
+            return (estmts ++ alloc ++ assign)
+        Nothing -> return alloc
+
 -- hack, FIXME:
 -- this is what match for prods currently looks like
 emitStmt s@(Match [scrutinee] [(pats,stmts), ([PVar _], _) ]) = do
