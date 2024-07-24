@@ -281,12 +281,12 @@ translateSingleEquation expr ([PCon con patargs], stmts) = withLocalState do
 -- p@(Just x) ~> [x -> p]
 -- p@(Pair x y) ~> [x -> fst p, y -> snd p]
 -- p@(Triple x y z) ~> [x -> fst p, y -> fst (snd p), z -> snd (snd p)]
-translatePatArgs :: Core.Expr -> [Pat] -> VSubst
+translatePatArgs :: Core.Expr -> [Pat Id] -> VSubst
 translatePatArgs s = Map.fromList . go s where
     go _ [] = []
-    go s [PVar n] = [(n, s)]
-    go s (PVar n:as) = let (s1, s2) = (Core.EFst s, Core.ESnd s) in
-        (n, s1) : go s2 as
+    go s [PVar i] = [(idName i, s)]
+    go s (PVar i:as) = let (s1, s2) = (Core.EFst s, Core.ESnd s) in
+        (idName i, s1) : go s2 as
 
 
 -----------------------------------------------------------------------

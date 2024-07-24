@@ -43,14 +43,6 @@ matchCompiler (CompUnit imps ds)
         ([], cons') -> return $ Right $ CompUnit imps (concat cons')
         (errs, _)   -> return $ Left $ unlines errs
 
-{-
- - Need to fix it here. 
- -
- - I need to do recurse this over contracts, 
- - however, I need to write functions only 
- - in the current scope
- -}
-
 matchCompilerDecl :: (Int, TopDecl Id) -> IO (Either String [TopDecl Id])
 matchCompilerDecl (_, TContr (Contract n vs ds))
   = do 
@@ -60,7 +52,7 @@ matchCompilerDecl (_, TContr (Contract n vs ds))
         (Right ds', fs) -> return $ Right [TContr (Contract n vs (ds' ++ map CFunDecl fs))]
 matchCompilerDecl (i, d)
   = do 
-      let n = Name ("foo" ++ show i)
+      let n = Name ("Global" ++ show i)
       res <- runCompilerM [n] (compile d)
       case res of 
         (Left err, _) -> return $ Left err 
@@ -157,13 +149,31 @@ thirdCase _ _ []
   = throwError "Panic! Impossible --- thirdCase."
 thirdCase (e : es) d eqns 
   = do 
-      x@(Id n t) <- freshId
+      x@(Id n _) <- freshId
       let 
           vs = foldr (union . L.head . L.fromList . map vars . fst) [] eqns 
           s  = map (\ vi -> (vi, n)) vs 
           eqns' = map (\ (_ : ps, ss) -> (ps, apply s ss)) eqns
+          t = typeOfExp e
       res <- matchCompilerM es d eqns' 
-      return (Let x (Just t) (Just e) : res) 
+      return (Let (Id n t) (Just t) (Just e) : res) 
+
+typeOfExp :: Exp Id -> Ty
+typeOfExp (Var i)               = idType i
+typeOfExp (Con i [])            = idType i
+typeOfExp e@(Con i args)        = go (idType i) args where
+  go ty [] = ty
+  go (_ :-> u) (a:as) = go u as
+  go _ _ = error $ "typeOfExp: " ++ show e
+typeOfExp (Lit (IntLit _))      = word --TyCon "Word" []
+typeOfExp (Call Nothing i args) = idType i
+typeOfExp (Lam args body (Just tb))       = funtype tas tb where
+  tas = map paramTy args
+typeOfExp e = error $ "typeOfExp: " ++ show e
+
+paramTy :: Param Id -> Ty 
+paramTy (Typed i _) = idType i 
+paramTy (Untyped i) = idType i 
 
 -- Implementation of the fourth case 
 
@@ -243,13 +253,22 @@ buildEquation (_ : es) d (p : ps, ss)
         (p', ps', vs) <- instantiatePat p
         ([p'],) <$> matchCompilerM (vs ++ es) d [(ps' ++ ps, ss)] 
 
-instantiatePat :: Pat -> CompilerM (Pat, [Pat], [Exp Id])
+instantiatePat :: Pat Id -> CompilerM (Pat Id, [Pat Id], [Exp Id])
 instantiatePat p@(PLit _) = return (p, [], [])
 instantiatePat (PCon n ps)
   = do
-      vs <- mapM (const freshId) ps 
-      let vs' = map (\ (Id n _) -> n) vs
-      return (PCon n (map PVar vs'), ps, map Var vs)
+      ns <- mapM (const freshName) ps
+      ts <- mapM tyFromPat ps 
+      let vs = zipWith Id ns ts
+      return (PCon n (map PVar vs), ps, map Var vs)
+
+tyFromPat :: Pat Id -> CompilerM Ty 
+tyFromPat (PVar (Id _ t)) = pure t
+tyFromPat (PLit _) = pure word
+tyFromPat (PCon (Id _ t) _) 
+  = maybe err pure (retTy t) 
+    where 
+      err = throwError "Impossible! Should have return type!"
 
 groupByConstr :: Equations Id -> [Equations Id]
 groupByConstr 
@@ -281,7 +300,7 @@ hasConstrsBeforeVars eqns
     in (not $ null cs) && all isVar vs 
 
 
-isConstr :: ([Pat], [Stmt Id]) -> Bool 
+isConstr :: ([Pat Id], [Stmt Id]) -> Bool 
 isConstr ((PCon _ _) : _, _) = True 
 isConstr ((PLit _) : _, _) = True
 isConstr _ = False
@@ -340,13 +359,13 @@ instance Apply (Exp Id) where
   apply _ e@(Lit _) = e 
   apply s (Call me n es)
     = Call (apply s me) n (apply s es)
-  apply s (Lam args bd) 
-    = Lam args (apply s bd)
+  apply s (Lam args bd mt) 
+    = Lam args (apply s bd) mt
 
-instance Apply Pat where 
+instance Apply (Pat Id) where 
   apply _ p = p
 
-  vars (PVar v) = [v]
+  vars (PVar (Id v _)) = [v]
   vars (PCon _ ps) = foldr (union . vars) [] ps 
   vars _ = []
 

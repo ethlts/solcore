@@ -82,7 +82,7 @@ instance Pretty DataTy where
       equals <+>  
       hsep (punctuate bar (map ppr cs))
     where 
-      bar = text "|"
+      bar = text " |"
 
 instance Pretty TySym where 
   ppr (TySym n t) 
@@ -262,7 +262,7 @@ instance Pretty a => Pretty (Exp a) where
   ppr (Lit l) = ppr l 
   ppr (Call e n es) 
     = pprE e <> ppr n <> (parens $ commaSep $ map ppr es)
-  ppr (Lam args bd) 
+  ppr (Lam args bd _) 
     = text "lam" <+> 
       pprParams args <+> 
       lbrace $$ 
@@ -273,7 +273,7 @@ pprE :: Pretty a => Maybe (Exp a) -> Doc
 pprE Nothing = ""
 pprE (Just e) = ppr e <> text "."
 
-instance Pretty Pat where 
+instance Pretty a => Pretty (Pat a) where 
   ppr (PVar n) 
     = ppr n
   ppr (PCon n []) = ppr n

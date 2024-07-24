@@ -35,6 +35,12 @@ retTy (t1 :-> t2) = ret t2
     ret t = Just t
 retTy t@(TyCon _ _) = Just t
 
+splitTy :: Ty -> ([Ty], Ty)
+splitTy (a :-> b) 
+  = let (as, r) = splitTy b 
+    in (a : as, r)
+splitTy t = ([], t)
+
 funtype :: [Ty] -> Ty -> Ty
 funtype ts t = foldr (:->) t ts
 

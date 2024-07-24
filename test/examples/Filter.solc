@@ -1,0 +1,67 @@
+data List[a] = Nil | Cons[a,List[a]]
+data Bool = False | True 
+data Either[a,b] = Left[a] | Right[b]
+
+function and(x,y) {
+  match x, y {
+  | False, _ => return False; 
+  | True, z => return z;
+  };
+}
+
+class a : Eq {
+  function eq (x : a, y : a) -> Bool ;
+}
+
+instance Word : Eq {
+  function eq (x, y) {
+    match primEqWord(x,y) {
+    | 0 => return False ; 
+    | _ => return True ; 
+    };
+  }
+}
+
+function either(f,g,r) {
+  match r {
+  | Left[a] => return f(a);
+  | Right[b] => return g(b);
+  };
+}
+
+function foo () {
+  return either ((lam (x) {return True;}), (lam (x) {return False ;}), Right[1]);
+}
+
+function filter (f, xs) {
+  match xs {
+  | Nil => return Nil ;
+  | Cons[y,ys] => 
+    match f(y) {
+    | False => return filter(f,ys); 
+    | True => return Cons[y,filter(f,ys)];
+    };
+  };
+}
+
+function idList (xs) {
+  return filter ((lam (x) {return True ;}), xs);
+}
+
+function list1 () {
+  return Cons[1, Cons[2, Cons[3, Nil]]]; 
+}
+ 
+function foo0(y) {
+  return filter((lam (x){ return eq(x,y); }), list1());
+}
+ 
+function foo1() {
+  return filter((lam (x){ return eq(x,1); }), list1());
+}
+ 
+function foo2(p,q) {
+  return filter(lam (x) { return and(p(x), q(x)) ; }
+                , list1());
+}
+

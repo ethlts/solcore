@@ -27,7 +27,7 @@ instance ReplaceWildcard a => ReplaceWildcard (Maybe a) where
   replace Nothing  = pure Nothing 
   replace (Just e) = Just <$> replace e 
 
-instance ReplaceWildcard Pat where
+instance ReplaceWildcard (Pat Id) where
   replace v@(PVar _) = return v 
   replace (PCon n ps)
     = PCon n <$> replace ps
@@ -47,8 +47,8 @@ instance ReplaceWildcard (Exp Id) where
     = Call <$> (replace me) <*> 
                pure n <*> 
                replace es
-  replace (Lam args bd) 
-    = Lam args <$> replace bd
+  replace (Lam args bd mt) 
+    = Lam args <$> replace bd <*> pure mt
 
 instance ReplaceWildcard (Stmt Id) where 
   replace (e1 := e2) 
@@ -124,9 +124,9 @@ freshExpVar :: CompilerM (Exp Id)
 freshExpVar 
   = Var <$> freshId  
 
-freshPVar :: CompilerM Pat 
+freshPVar :: CompilerM (Pat Id) 
 freshPVar 
-  = PVar <$> freshName
+  = PVar <$> freshId
 
 runCompilerM :: [Name] -> CompilerM a -> IO (Either String a, [FunDef Id])
 runCompilerM ns m

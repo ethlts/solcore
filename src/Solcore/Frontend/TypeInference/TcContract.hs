@@ -33,7 +33,15 @@ tcCompUnit (CompUnit imps cs)
   = do 
       loadImports imps
       mapM_ checkTopDecl cs
-      CompUnit imps <$> mapM tcTopDecl cs 
+      cs' <- mapM tcTopDecl' cs 
+      pure (CompUnit imps cs')
+    where 
+      tcTopDecl' d = do 
+        clearSubst
+        d' <- tcTopDecl d 
+        s <- getSubst 
+        pure (everywhere (mkT (applyI s)) d')
+
 
 tcTopDecl :: TopDecl Name -> TcM (TopDecl Id)
 tcTopDecl (TContr c) 

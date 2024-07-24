@@ -254,7 +254,7 @@ Expr : Name                                        {Var $1}
      | Expr '.' Name                               {FieldAccess $1 $3}
      | Expr '.' Name FunArgs                       {Call (Just $1) $3 $4}
      | Name FunArgs                                {Call Nothing $1 $2}
-     | 'lam' '(' ParamList ')' Body                {Lam $3 $5} 
+     | 'lam' '(' ParamList ')' Body                {Lam $3 $5 Nothing} 
 
 ConArgs :: {[Exp Name]}
 ConArgs : '[' ExprCommaList ']'                    {$2}
@@ -270,29 +270,29 @@ ExprCommaList : Expr                               {[$1]}
 
 -- Pattern matching equations 
 
-Equations :: { [([Pat], [Stmt Name])]}
+Equations :: { [([Pat Name], [Stmt Name])]}
 Equations : Equation Equations                     {$1 : $2}
           | {- empty -}                            {[]}
 
-Equation :: { ([Pat], [Stmt Name]) }
+Equation :: { ([Pat Name], [Stmt Name]) }
 Equation : '|' PatCommaList '=>' StmtList          {($2, $4)}
 
-PatCommaList :: { [Pat] }
+PatCommaList :: { [Pat Name] }
 PatCommaList : Pattern                             {[$1]}
              | Pattern ',' PatCommaList            {$1 : $3}
 
-Pattern :: { Pat }
+Pattern :: { Pat Name }
 Pattern : Name                                     {PVar $1}
         | Con PatternList                          {PCon $1 $2}
         | '_'                                      {PWildcard}
         | Literal                                  {PLit $1}
         | '(' Pattern ')'                          {$2}
 
-PatternList :: {[Pat]}
+PatternList :: {[Pat Name]}
 PatternList : '[' PatList ']'                      {$2}
             | {- empty -}                          {[]}
 
-PatList :: { [Pat] }
+PatList :: { [Pat Name] }
 PatList : Pattern                                  {[$1]}
         | Pattern ',' PatList                      {$1 : $3}
 

@@ -78,36 +78,39 @@ tcEquations ts eqns
 tcEquation :: [Ty] -> Equation Name -> TcM (Equation Id, [Pred], Ty)
 tcEquation ts (ps, ss) 
   = withLocalEnv do 
-      (ns, schs, ts') <- unzip3 <$> tcPats ts ps 
+      (ps', res) <- tcPats ts ps 
+      let (ns, schs, ts) = unzip3 res
       mapM_ (uncurry extEnv) (zip ns schs)
       (ss', pss', t) <- tcBody ss
-      withCurrentSubst ((ps, ss'), pss', t)
+      withCurrentSubst ((ps', ss'), pss', t)
 
-tcPats :: [Ty] -> [Pat] -> TcM [(Name,Scheme, Ty)]
+tcPats :: [Ty] -> [Pat Name] -> TcM ([Pat Id], [(Name,Scheme, Ty)])
 tcPats ts ps 
   | length ts /= length ps = wrongPatternNumber ts ps
   | otherwise = do 
-      ctxs <- mapM (\(t, p) -> tcPat t p) (zip ts ps)
-      pure (concat ctxs)
+      (ps', ctxs) <- unzip <$> mapM (\(t, p) -> tcPat t p) 
+                                    (zip ts ps)
+      pure (ps', concat ctxs)
 
 
-tcPat :: Ty -> Pat -> TcM [(Name, Scheme, Ty)]
+tcPat :: Ty -> Pat Name -> TcM (Pat Id, [(Name, Scheme, Ty)])
 tcPat t p 
   = do 
-      (t', pctx) <- tiPat p
+      (p', t', pctx) <- tiPat p
       s <- unify t t'
       let pctx' = map (\ (n,t) -> (n, monotype $ apply s t, t)) pctx
-      pure pctx'
+      pure (p', pctx')
 
-tiPat :: Pat -> TcM (Ty, [(Name, Ty)])
+tiPat :: Pat Name -> TcM (Pat Id, Ty, [(Name, Ty)])
 tiPat (PVar n) 
   = do 
       t <- freshTyVar
-      pure (t, [(n,t)])
+      let v = PVar (Id n t)
+      pure (v, t, [(n,t)])
 tiPat p@(PCon n ps)
   = do
       -- typing parameters 
-      (ts, lctxs) <- unzip <$> mapM tiPat ps
+      (ps1, ts, lctxs) <- unzip3 <$> mapM tiPat ps
       -- asking type from environment 
       st <- askEnv n
       (ps' :=> tc) <- freshInst st
@@ -117,13 +120,15 @@ tiPat p@(PCon n ps)
       tn <- typeName t'   
       checkConstr tn n 
       let lctx' = map (\(n',t') -> (n', apply s t')) (concat lctxs)
-      pure (apply s tr, lctx')
+      pure (PCon (Id n tc) ps1, apply s tr, lctx')
 tiPat PWildcard 
-  = (, []) <$> freshTyVar
+  = f <$> freshTyVar
+    where 
+      f t = (PWildcard, t, [])
 tiPat (PLit l) 
   = do 
       t <- tcLit l 
-      pure (t, [])
+      pure (PLit l, t, [])
 
 -- type inference for expressions 
 
@@ -168,13 +173,13 @@ tcExp (FieldAccess e n)
       pure (FieldAccess e' (Id n t'), ps ++ ps', t')
 tcExp (Call me n args)
   = tcCall me n args 
-tcExp e@(Lam args bd)
+tcExp e@(Lam args bd _)
   = do 
       (args', ts') <- unzip <$> mapM addArg args 
       (bd',ps,t') <- tcBody bd 
       s <- getSubst
       let (ps1,t1) = apply s (ps, funtype ts' t')
-          e' = everywhere (mkT (applyI s)) (Lam args' bd')
+          e' = everywhere (mkT (applyI s)) (Lam args' bd' (Just t1))
       pure (e', ps1, t1)
 
 applyI :: Subst -> Ty -> Ty 
@@ -205,7 +210,8 @@ tcCall Nothing n args
       (es', pss', ts') <- unzip3 <$> mapM tcExp args
       s' <- unify t (foldr (:->) t' ts')
       let ps' = foldr union [] (ps : pss')
-      withCurrentSubst (Call Nothing (Id n t') es', ps', t')
+          t1 = foldr (:->) t' ts'
+      withCurrentSubst (Call Nothing (Id n t1) es', ps', t')
 tcCall (Just e) n args 
   = do 
       (e', ps , ct) <- tcExp e
@@ -343,7 +349,7 @@ expectedFunction t
                          , pretty t 
                          ]
 
-wrongPatternNumber :: [Ty] -> [Pat] -> TcM a
+wrongPatternNumber :: [Ty] -> [Pat Name] -> TcM a
 wrongPatternNumber qts ps 
   = throwError $ unlines [ "Wrong number of patterns in:"
                          , unwords (map pretty ps)
