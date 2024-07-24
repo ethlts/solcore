@@ -7,6 +7,7 @@ import Control.Monad.Reader.Class
 import Control.Monad.State
 import Data.List(intercalate)
 import qualified Data.Map as Map
+import Data.Maybe(fromMaybe)
 
 import Solcore.Frontend.Pretty.SolcorePretty
 import Solcore.Frontend.Syntax
@@ -15,6 +16,7 @@ import Solcore.Frontend.TypeInference.TcEnv(TcEnv(..),TypeInfo(..), TypeTable)
 import Solcore.Frontend.TypeInference.TcSubst
 import Solcore.Frontend.TypeInference.TcUnify
 import Solcore.Primitives.Primitives
+import Solcore.Desugarer.Specialise(typeOfTcExp)
 import System.Exit
 
 emitCore :: Bool -> TcEnv ->  CompUnit Id -> IO [Core.Contract]
@@ -36,7 +38,7 @@ initEcState debugp env = EcState
    { ecSubst = emptyVSubst
    , ecDT = Map.empty
    , ecNest = 0
-   , ecDebug = debugp
+   , ecDebug = True -- debugp
    }
 
 withLocalState :: EM a -> EM a
@@ -141,15 +143,14 @@ translateType t = error ("Cannot translate type " ++ show t)
 
 translateTCon :: Name -> [Ty] -> EM Core.Type
 translateTCon tycon tas = do
-    dumpDT
     mti <- gets (Map.lookup tycon . ecDT)
     case mti of
         Just (DataTy n tvs cs) -> do
             let subst = Subst $ zip tvs tas
             buildSumType <$> mapM (translateDCon subst) cs
-        Nothing -> errors["translateTCon: unknown type ", pretty tycon, "\n", show tycon]
+        Nothing -> errors ["translateTCon: unknown type ", pretty tycon, "\n", show tycon]
   where
-      buildSumType [] = errors["empty sum ", pretty tycon] -- Core.TUnit
+      buildSumType [] = errors ["empty sum ", pretty tycon] -- Core.TUnit
       buildSumType ts = foldr1 Core.TSum ts
 
 
@@ -211,7 +212,7 @@ emitExp (Var x) = do
     subst <- gets ecSubst
     case Map.lookup (idName x) subst of
         Just e -> pure (e, [])
-        Nothing -> pure(Core.EVar (unwrapId x), [])
+        Nothing -> pure (Core.EVar (unwrapId x), [])
 emitExp (Call Nothing f as) = do
     (coreArgs, codes) <- unzip <$> mapM emitExp as
     let call =  Core.ECall (unwrapId f) coreArgs
@@ -246,7 +247,7 @@ emitStmt s@(Match [scrutinee] [(pats,stmts), ([PVar _], _) ]) = do
     mcode <- translateSingleEquation sexpr (pats, stmts)
     return (scode ++ mcode)
 
-
+emitStmt s@(Match [scrutinee] alts) = emitMatch scrutinee alts
 emitStmt s = errors ["emitStmt not implemented for: ", pretty s, "\n", show s]
 
 emitStmts :: [Stmt Id] -> EM [Core.Stmt]
@@ -274,6 +275,60 @@ General approach to match statement translation:
 -- | translateSingleEquation handles the special case for product types
 -- there is only one match branch, just transform to projections
 -- takes a translated scrutinee and a single equation
+
+-- !!! FIXME works for 03maybe but fails for 03option
+emitMatch :: Exp Id -> Equations Id -> EM [Core.Stmt]
+emitMatch scrutinee alts = do
+    let sty =  typeOfTcExp scrutinee
+    (sVal, sCode) <- emitExp scrutinee
+    debug [ "emitMatch: ", pretty scrutinee, " :: ", pretty sty
+          , "\n", unlines $ map pretty alts]
+    let scon = case sty of
+            TyCon n _ -> n
+            _ -> error ("emitMatch: scrutinee not a type constructor: " ++ show sty)
+    mti <- gets (Map.lookup scon . ecDT)
+    let ti = fromMaybe (error ("emitMatch: unknown type " ++ show scon)) mti
+    let allCons = dataConstrs ti
+    let allConNames = map constrName allCons
+    -- TODO: build branch list in order matching allCons
+    -- by inserting them into a map and then outputting in order
+    -- take default branch from last equation into account
+    let noMatch c = [Core.SRevert ("no match for: "++unName c)]
+    debug ["emitMatch: allCons ", show allConNames]
+    -- let defaultAltMap = Map.fromList [(c, noMatch c) | c <- allConNames]
+    branches <- map snd <$> emitEqns alts
+    debug ["emitMatch: branches ", show branches]
+    let matchCode = buildMatch sVal branches
+    return(sCode ++ matchCode)
+    where
+      emitEqn :: Core.Expr -> Equation Id -> EM (Pat Id, [Core.Stmt])
+      emitEqn expr ([pat@(PCon con patargs)], stmts) = withLocalState do
+        let pvars = translatePatArgs expr patargs
+        extendVSubst pvars
+        coreStmts <- emitStmts stmts
+        debug ["emitEqn: ", pretty pat, " / ", show expr, " -> ", show coreStmts]
+        return (pat, coreStmts)
+
+      -- TODO: emitEqns should process the eqns in constructor declaration order
+      -- e.g. if we have data B = F | T and then match b | T => ... | F => ...
+      -- we should still process the F case first to avoid mixing up inl/inr
+      emitEqns :: [Equation Id] -> EM [(Pat Id, [Core.Stmt])]
+      emitEqns [eqn] = (:[]) <$> emitEqn (Core.EVar "right") eqn
+      -- FIXME: hack to ignore the catch-all case for now
+      emitEqns [eqn, ([PVar _], _)] = emitEqns [eqn]
+      emitEqns (eqn:eqns) = do
+        b <- emitEqn (Core.EVar "left") eqn
+        bs <- emitEqns eqns
+        return (b:bs)
+
+      buildMatch :: Core.Expr -> [[Core.Stmt]] -> [Core.Stmt]
+      buildMatch pval = go where
+        go [b] = b
+        go (b:bs) =  [Core.SMatch pval [ alt "left" b
+                          , alt "right" (go bs)]]
+        alt n [stmt] = Core.Alt n stmt
+        alt n stmts = Core.Alt n (Core.SBlock stmts)
+
 translateSingleEquation :: Core.Expr -> Equation Id -> EM [Core.Stmt]
 translateSingleEquation expr ([PCon con patargs], stmts) = withLocalState do
     let pvars = translatePatArgs expr patargs
