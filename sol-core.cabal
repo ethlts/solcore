@@ -90,6 +90,7 @@ executable sol-core
   build-tool-depends: alex:alex, happy:happy
 
 executable yule
+    import: common-opts
     main-is:          Main.hs
     hs-source-dirs: yule
     default-extensions:

@@ -288,21 +288,29 @@ emitMatch scrutinee alts = do
         [c] -> emitProdMatch scrutinee alts
         _ -> emitSumMatch allCons scrutinee alts
 
+type BranchMap = Map.Map Name [Core.Stmt]
+
 emitSumMatch :: [Constr] -> Exp Id -> Equations Id -> EM [Core.Stmt]
 emitSumMatch allCons scrutinee alts = do
-    let allConNames = map constrName allCons
+    let 
     (sVal, sCode) <- emitExp scrutinee
     -- TODO: build branch list in order matching allCons
     -- by inserting them into a map and then outputting in order
     -- take default branch from last equation into account
     let noMatch c = [Core.SRevert ("no match for: "++unName c)]
     debug ["emitMatch: allCons ", show allConNames]
-    -- let defaultAltMap = Map.fromList [(c, noMatch c) | c <- allConNames]
-    branches <- map snd <$> emitEqns alts
+    let defaultBranchMap = Map.fromList [(c, noMatch c) | c <- allConNames]
+    branches <- emitEqns alts
+    let branchMap = foldr insertBranch defaultBranchMap branches
+    let branches = [branchMap Map.! c | c <- allConNames]
     debug ["emitMatch: branches ", show branches]
     let matchCode = buildMatch sVal branches
     return(sCode ++ matchCode)
     where
+      allConNames = map constrName allCons
+      insertBranch :: (Pat Id, [Core.Stmt]) -> BranchMap -> BranchMap
+      insertBranch (PVar (Id n _), stmts) m = Map.fromList [(c, stmts) | c <- allConNames]
+      insertBranch (PCon (Id n _) _, stmts) m = Map.insert n stmts m
       emitEqn :: Core.Expr -> Equation Id -> EM (Pat Id, [Core.Stmt])
       emitEqn expr ([pat@(PCon con patargs)], stmts) = withLocalState do
         let pvars = translatePatArgs expr patargs
@@ -315,27 +323,45 @@ emitSumMatch allCons scrutinee alts = do
       -- e.g. if we have data B = F | T and then match b | T => ... | F => ...
       -- we should still process the F case first to avoid mixing up inl/inr
       emitEqns :: [Equation Id] -> EM [(Pat Id, [Core.Stmt])]
-      emitEqns [eqn] = (:[]) <$> emitEqn (Core.EVar altName) eqn
+      emitEqns [eqn] = (:[]) <$> emitEqn (Core.EVar (altName True)) eqn
       -- FIXME: hack to ignore the catch-all case for now
       emitEqns [eqn, ([PVar _], _)] = emitEqns [eqn]
       emitEqns (eqn:eqns) = do
-        b <- emitEqn (Core.EVar altName) eqn
+        b <- emitEqn (Core.EVar (altName False)) eqn
         bs <- emitEqns eqns
         return (b:bs)
 
+      {- buildMatch builds a nested match statement from a list of branches
+         e.g. [b1, b2, b3] yields
+            match s with {
+                inl $left => b1
+                inr $right => match $right with {
+                    inl $left => b2
+                    inr $right => b3
+                }
+            }
+
+          The names $left and $right are used for clarity, 
+          they can be reused in subsequent branches (no need for unique names 
+          as long as they do not clash with user variables)
+      -}
       buildMatch :: Core.Expr -> [[Core.Stmt]] -> [Core.Stmt]
-      buildMatch pval branches = [Core.SMatch pval alts] where
-        alts = [Core.Alt altName (body b) | b <- branches]
-{-
-        go [b] = b
-        go (b:bs) =  [Core.SMatch pval [ alt b
-                          , alt (go bs)]]
-        alt [stmt] = Core.Alt altName stmt
-        alt stmts = Core.Alt altName (Core.SBlock stmts)
--}
+      buildMatch _ [] = error "buildMatch: empty branch list" 
+      buildMatch sval branches = go sval branches where
+        go sval [b] = b -- last branch needs no match
+        go sval (b:bs) =  [Core.SMatch sval [ alt left b
+                          , alt right (go (Core.EVar right) bs)]]
+        left = altName False
+        right = altName True
+        alt n [stmt] = Core.Alt n stmt
+        alt n stmts = Core.Alt n (Core.SBlock stmts)
+
         body [stmt] = stmt
         body stmts = Core.SBlock stmts
-      altName = "$alt"
+      
+      altName False = "$left" 
+      altName True = "$right"
+
 emitProdMatch :: Exp Id -> Equations Id -> EM [Core.Stmt]
 emitProdMatch scrutinee (eqn:_) = do
     (sexpr, scode) <- emitExp scrutinee
