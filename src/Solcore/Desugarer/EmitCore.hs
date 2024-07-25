@@ -107,6 +107,7 @@ emitCDecl cd = debug ["!! emitCDecl ", show cd] >> pure []
 emitFunDef :: FunDef Id -> EM [Core.Stmt]
 emitFunDef (FunDef sig body) = do
   (name, args, typ) <- translateSig sig
+  debug ["emitFunDef ", name, " :: ", show typ]
   coreBody <- emitStmts body
   let coreFun = Core.SFunction name args typ coreBody
   return [coreFun]
@@ -240,13 +241,6 @@ emitStmt (Let (Id name ty) mty mexp ) = do
             return (estmts ++ alloc ++ assign)
         Nothing -> return alloc
 
--- hack, FIXME:
--- this is what match for prods currently looks like
-emitStmt s@(Match [scrutinee] [(pats,stmts), ([PVar _], _) ]) = do
-    (sexpr, scode) <- emitExp scrutinee
-    mcode <- translateSingleEquation sexpr (pats, stmts)
-    return (scode ++ mcode)
-
 emitStmt s@(Match [scrutinee] alts) = emitMatch scrutinee alts
 emitStmt s = errors ["emitStmt not implemented for: ", pretty s, "\n", show s]
 
@@ -280,7 +274,7 @@ General approach to match statement translation:
 emitMatch :: Exp Id -> Equations Id -> EM [Core.Stmt]
 emitMatch scrutinee alts = do
     let sty =  typeOfTcExp scrutinee
-    (sVal, sCode) <- emitExp scrutinee
+
     debug [ "emitMatch: ", pretty scrutinee, " :: ", pretty sty
           , "\n", unlines $ map pretty alts]
     let scon = case sty of
@@ -289,7 +283,15 @@ emitMatch scrutinee alts = do
     mti <- gets (Map.lookup scon . ecDT)
     let ti = fromMaybe (error ("emitMatch: unknown type " ++ show scon)) mti
     let allCons = dataConstrs ti
+    case allCons of
+        [] -> errors ["emitMatch: no constructors for ", pretty scon]
+        [c] -> emitProdMatch scrutinee alts
+        _ -> emitSumMatch allCons scrutinee alts
+
+emitSumMatch :: [Constr] -> Exp Id -> Equations Id -> EM [Core.Stmt]
+emitSumMatch allCons scrutinee alts = do
     let allConNames = map constrName allCons
+    (sVal, sCode) <- emitExp scrutinee
     -- TODO: build branch list in order matching allCons
     -- by inserting them into a map and then outputting in order
     -- take default branch from last equation into account
@@ -313,21 +315,32 @@ emitMatch scrutinee alts = do
       -- e.g. if we have data B = F | T and then match b | T => ... | F => ...
       -- we should still process the F case first to avoid mixing up inl/inr
       emitEqns :: [Equation Id] -> EM [(Pat Id, [Core.Stmt])]
-      emitEqns [eqn] = (:[]) <$> emitEqn (Core.EVar "right") eqn
+      emitEqns [eqn] = (:[]) <$> emitEqn (Core.EVar altName) eqn
       -- FIXME: hack to ignore the catch-all case for now
       emitEqns [eqn, ([PVar _], _)] = emitEqns [eqn]
       emitEqns (eqn:eqns) = do
-        b <- emitEqn (Core.EVar "left") eqn
+        b <- emitEqn (Core.EVar altName) eqn
         bs <- emitEqns eqns
         return (b:bs)
 
       buildMatch :: Core.Expr -> [[Core.Stmt]] -> [Core.Stmt]
-      buildMatch pval = go where
+      buildMatch pval branches = [Core.SMatch pval alts] where
+        alts = [Core.Alt altName (body b) | b <- branches]
+{-
         go [b] = b
-        go (b:bs) =  [Core.SMatch pval [ alt "left" b
-                          , alt "right" (go bs)]]
-        alt n [stmt] = Core.Alt n stmt
-        alt n stmts = Core.Alt n (Core.SBlock stmts)
+        go (b:bs) =  [Core.SMatch pval [ alt b
+                          , alt (go bs)]]
+        alt [stmt] = Core.Alt altName stmt
+        alt stmts = Core.Alt altName (Core.SBlock stmts)
+-}
+        body [stmt] = stmt
+        body stmts = Core.SBlock stmts
+      altName = "$alt"
+emitProdMatch :: Exp Id -> Equations Id -> EM [Core.Stmt]
+emitProdMatch scrutinee (eqn:_) = do
+    (sexpr, scode) <- emitExp scrutinee
+    mcode <- translateSingleEquation sexpr eqn
+    return (scode ++ mcode)
 
 translateSingleEquation :: Core.Expr -> Equation Id -> EM [Core.Stmt]
 translateSingleEquation expr ([PCon con patargs], stmts) = withLocalState do
