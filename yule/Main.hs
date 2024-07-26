@@ -49,7 +49,7 @@ main = do
     let core = ccStmts coreContract
     when (verbose options) $ do
         putStrLn "/* Core:"
-        putStrLn (render (nest 2 (pretty coreContract)))
+        putStrLn (render (nest 2 (ppr coreContract)))
         putStrLn "*/"
     generatedYul <- runTM (translateStmts core)
     let fooFun = wrapInSolFunction "wrapper" generatedYul

@@ -2,8 +2,6 @@ module Solcore.Frontend.TypeInference.Id where
 
 import Data.Generics (Data, Typeable)
 
-import Text.PrettyPrint.HughesPJ (text, (<+>), empty)
-
 import Solcore.Frontend.Pretty.SolcorePretty
 import Solcore.Frontend.Syntax
 import Solcore.Frontend.TypeInference.TcSubst 
