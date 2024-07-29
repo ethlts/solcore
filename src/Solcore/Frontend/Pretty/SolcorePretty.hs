@@ -243,6 +243,9 @@ instance Pretty a => Pretty (Equation a) where
     = text "|" <+> commaSep (map ppr p) <+> text "=>" $$ 
       nest 3 (vcat (map ppr ss))
 
+instance Pretty a => Pretty (Equations a) where 
+  ppr = vcat . map ppr
+
 pprOptTy :: Maybe Ty -> Doc 
 pprOptTy Nothing = empty 
 pprOptTy (Just t)
@@ -259,7 +262,8 @@ pprInitOpt (Just e) = equals <+> ppr e <+> semi
 instance Pretty a => Pretty (Exp a) where 
   ppr (Var v) = ppr v 
   ppr (Con n es) 
-    = ppr n <> (brackets $ commaSep $ map ppr es)
+    = ppr n <> if null es then empty 
+               else (brackets $ commaSep $ map ppr es)
   ppr (Lit l) = ppr l 
   ppr (Call e n es) 
     = pprE e <> ppr n <> (parens $ commaSep $ map ppr es)

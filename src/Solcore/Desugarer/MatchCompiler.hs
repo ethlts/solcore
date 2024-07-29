@@ -1,5 +1,6 @@
 module Solcore.Desugarer.MatchCompiler where
 
+import Control.Monad
 import Control.Monad.Except
 import Control.Monad.IO.Class
 import Control.Monad.Reader 
@@ -128,7 +129,8 @@ matchCompilerM :: [Exp Id] -> [Stmt Id] -> Equations Id -> CompilerM [Stmt Id]
 -- first case: No remaining equations. We return the default body.
 matchCompilerM _ d [] = return d
 -- second case: no scrutinee. Result is the body of the first equation.
-matchCompilerM [] _ ((_, s1) : _) = return s1
+matchCompilerM [] _ ((_, s1) : _) = do 
+  return s1
 matchCompilerM es d eqns@(_ : _) 
 -- third case: all first patterns are variables 
   | allPatsStartsWithVars eqns 
@@ -140,7 +142,7 @@ matchCompilerM es d eqns@(_ : _)
   | hasVarsBetweenConstrs eqns  
       = fifthCase es d eqns 
   | otherwise 
-    = error "Panic! Impossible! Shoud not happen!" 
+    = throwError "Panic! Impossible --- matchCompilerM" 
 
 -- Implementation of the third case.
 
@@ -148,14 +150,14 @@ thirdCase :: [Exp Id] -> [Stmt Id] -> Equations Id -> CompilerM [Stmt Id]
 thirdCase _ _ []   
   = throwError "Panic! Impossible --- thirdCase."
 thirdCase (e : es) d eqns 
-  = do 
+  = do
       x@(Id n _) <- freshId
       let 
-          vs = foldr (union . L.head . L.fromList . map vars . fst) [] eqns 
+          vs = foldr (union . vars . L.head . L.fromList . fst) [] eqns 
           s  = map (\ vi -> (vi, n)) vs 
           eqns' = map (\ (_ : ps, ss) -> (ps, apply s ss)) eqns
           t = typeOfExp e
-      res <- matchCompilerM es d eqns' 
+      res <- matchCompilerM es d eqns'
       return (Let (Id n t) (Just t) (Just e) : res) 
 
 typeOfExp :: Exp Id -> Ty
@@ -183,13 +185,27 @@ fourthCase _ _ []
 fourthCase (e : es) d eqns 
   = do
       let (cons, vars) = span isConstr eqns
+          cons' = sortBy compareConstr cons 
       defEqn <- eqnsForVars es d vars
-      let ss = stmtsFrom defEqn 
-      conEqns <- eqnsForConstrs (e : es) d ss cons 
+      let ss = stmtsFrom defEqn -- statements for the closest var match,
+                                -- used for the default instruction semantics.
+          cons'' = groupByConstrHead cons'
+      conEqns <- mapM (eqnsForConstrs (e : es) d ss) cons''
       return [Match [e] (conEqns ++ defEqn)]
     where
       stmtsFrom [] = []
       stmtsFrom ((_, ss) : _) = ss 
+      
+      single [_] = True 
+      single _ = False 
+
+groupByConstrHead :: Equations Id -> [Equations Id]
+groupByConstrHead = groupBy (\ c c' -> compareConstr c c' == EQ)
+
+compareConstr :: Equation Id -> Equation Id -> Ordering 
+compareConstr ((PCon (Id n _) _) : _, _) ((PCon (Id n' _) _) : _, _) 
+  = compare n n' 
+compareConstr _ _ = EQ 
 
 -- implementation of the fifth case 
 
@@ -197,7 +213,7 @@ fifthCase :: [Exp Id] -> [Stmt Id] -> Equations Id -> CompilerM [Stmt Id]
 fifthCase [] _ [] 
   = throwError "Panic! Impossible --- fifthCase"
 fifthCase es@(_ : _) d eqns@(_ : eqs)
-  = do 
+  = do
       let eqnss = reverse $ splits isConstr eqns
       case unsnoc eqnss of
         Just (eqs, eq) -> do 
@@ -237,21 +253,18 @@ eqnsForConstrs :: [Exp Id] ->
                   [Stmt Id] -> 
                   [Stmt Id] -> 
                   Equations Id -> 
-                  CompilerM (Equations Id)
-eqnsForConstrs es d ss eqns
-  = concat <$> mapM (eqForConstr es ss) (groupByConstr eqns)
+                  CompilerM (Equation Id)
+eqnsForConstrs (_ : es) d ss eqns@(((p : _), _) : _)
+  = do
+      (p', ps', es') <- instantiatePat p 
+      let eqns' = map dropHeadParam eqns
+      res <- matchCompilerM (es' ++ es) d eqns'
+      pure ([p'],res) 
 
-eqForConstr :: [Exp Id] -> [Stmt Id] -> Equations Id -> CompilerM (Equations Id)
-eqForConstr es d eqn 
-  = mapM (buildEquation es d) eqn  
+dropHeadParam :: Equation Id -> Equation Id
+dropHeadParam ((PCon n ps' : ps), ss) = (ps' ++ ps , ss)
+dropHeadParam x = x 
 
-buildEquation :: [Exp Id] -> [Stmt Id] -> Equation Id -> CompilerM (Equation Id)
-buildEquation _ _ ([], _) 
-  = throwError "Panic! Impossible --- buildEquation"
-buildEquation (_ : es) d (p : ps, ss)
-  = do 
-        (p', ps', vs) <- instantiatePat p
-        ([p'],) <$> matchCompilerM (vs ++ es) d [(ps' ++ ps, ss)] 
 
 instantiatePat :: Pat Id -> CompilerM (Pat Id, [Pat Id], [Exp Id])
 instantiatePat p@(PLit _) = return (p, [], [])
@@ -270,26 +283,21 @@ tyFromPat (PCon (Id _ t) _)
     where 
       err = throwError "Impossible! Should have return type!"
 
-groupByConstr :: Equations Id -> [Equations Id]
-groupByConstr 
-  = groupBy conEq . sort 
-    where 
-      conEq ((PCon n _) : _, _) ((PCon n' _) : _ , _) = n == n' 
-      conEq _ _ = False
-
-
 eqnsForVars :: [Exp Id] -> [Stmt Id] -> Equations Id -> CompilerM (Equations Id)
+eqnsForVars _ _ [] = return []
 eqnsForVars es d eqns 
   = do 
       v <- freshPVar
       let 
           [v'] = vars v
-          vs  = foldr (union . vars . fst) [] eqns 
+          vs  = foldr (union . vars . safeHead . fst) [] eqns 
           s = map (\ vi -> (vi, v')) vs 
           eqns' = map (\ (ps, ss) -> (ps, apply s ss)) eqns
       ss' <- matchCompilerM es d eqns'
       return [([v], ss')]
 
+safeHead :: [a] -> a 
+safeHead = L.head . L.fromList 
 
 hasConstrsBeforeVars :: Equations Id -> Bool 
 hasConstrsBeforeVars eqns 
