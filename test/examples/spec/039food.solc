@@ -1,0 +1,29 @@
+
+data Food = Curry | Beans | Other
+data CFood = Red[Food] | Green[Food] | Nocolor
+
+
+
+
+  function fromEnum(x : Food) {
+     match x {
+       | Curry => return 1;
+       | Beans => return 2;
+       | Other => return 3;
+     };
+  }
+
+
+contract Food {
+  function eat(x) {
+    match x {
+       | Red[f] => return f;
+       | Green[f] => return f;
+       | _ => Other;
+    };
+  }
+  
+  function main() {
+  return fromEnum(eat(Green[Beans]));
+  }
+}

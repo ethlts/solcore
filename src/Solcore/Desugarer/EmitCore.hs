@@ -358,9 +358,9 @@ emitSumMatch allCons scrutinee alts = do
 
         body [stmt] = stmt
         body stmts = Core.SBlock stmts
-      
-      altName False = "$left" 
-      altName True = "$right"
+      -- Would be clearer with $left/$right, but simpler with $alt for now
+      altName False = "$alt"
+      altName True = "$alt"
 
 emitProdMatch :: Exp Id -> Equations Id -> EM [Core.Stmt]
 emitProdMatch scrutinee (eqn:_) = do
