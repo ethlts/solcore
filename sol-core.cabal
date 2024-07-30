@@ -74,6 +74,7 @@ library
       Solcore.Primitives.Primitives
       Language.Core
       Language.Core.Parser
+      Language.Core.Types
       Language.Yul
       Language.Yul.Parser
       Common.LightYear

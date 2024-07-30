@@ -1,19 +1,17 @@
 
 {-# OPTIONS_GHC -Wincomplete-patterns #-}
-module Language.Core where
-import Common.Pretty
-import Language.Yul
+module Language.Core
+  ( Expr(..), Stmt(..), Arg(..), Alt(..), Contract(..), Core(..)
+  , module Language.Core.Types
+  ,  pattern SAV
+  ) where
 
+import Common.Pretty
+import Language.Core.Types
+import Language.Yul
 -- type Name = String
 
-data Type
-    = TWord
-    | TBool
-    | TPair Type Type
-    | TSum Type Type
-    | TFun [Type] Type
-    | TUnit
-    deriving (Show)
+
 
 data Expr
     = EWord Integer
