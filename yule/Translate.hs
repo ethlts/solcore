@@ -1,5 +1,5 @@
 module Translate where
-import Data.List(union)
+import Data.List(nub, union)
 import GHC.Stack
 import Language.Core
 import TM
@@ -49,7 +49,7 @@ flattenRhs (LocWord n) = [yulInt n]
 flattenRhs (LocBool b) = [yulBool b]
 flattenRhs (LocStack i) = [YulIdentifier (stkLoc i)]
 flattenRhs (LocPair l r) = flattenRhs l ++ flattenRhs r
-flattenRhs (LocSum t l r) = flattenRhs t ++ flattenRhs l ++ flattenRhs r
+flattenRhs (LocSum t l r) = flattenRhs t ++ maxList(flattenRhs l) (flattenRhs r)
 flattenRhs LocUnit = []
 flattenRhs LocUndefined = []
 flattenRhs l = error ("flattenRhs: not implemented for "++show l)
@@ -57,10 +57,17 @@ flattenRhs l = error ("flattenRhs: not implemented for "++show l)
 flattenLhs :: Location -> [Name]
 flattenLhs (LocStack i) = [stkLoc i]
 flattenLhs (LocPair l r) = flattenLhs l ++ flattenLhs r
-flattenLhs (LocSum t l r) = flattenLhs t ++ flattenLhs l ++ flattenLhs r
+flattenLhs (LocSum t l r) = flattenLhs t ++ maxList (flattenLhs l) (flattenLhs r)
 flattenLhs LocUnit = []
 flattenLhs LocUndefined = []
 flattenLhs l = error ("flattenLhs: not implemented for "++show l)
+
+
+maxList :: (Show a, Eq a) => [a] -> [a] -> [a]
+maxList [] ys = ys
+maxList xs [] = xs
+maxList (x:xs) (y:ys) | x == y = x : maxList xs ys
+maxList xs ys = error ("maxList: mismatch "++show xs++" "++show ys)
 
 genStmtWithComment :: Stmt -> TM [YulStatement]
 genStmtWithComment (SComment c) = pure [YulComment c]
@@ -149,6 +156,7 @@ buildLoc (TPair t1 t2) = do
     l1 <- buildLoc t1
     l2 <- buildLoc t2
     return (LocPair l1 l2)
+
 buildLoc (TSum t1 t2) = do
     -- Make sum branches share stack slots
     tag <- LocStack <$> freshId
@@ -160,6 +168,7 @@ buildLoc (TSum t1 t2) = do
     rightMark <- getCounter
     setCounter (max leftMark rightMark)
     return (LocSum tag l1 l2)
+
 buildLoc TUnit = pure LocUnit
 buildLoc t = error ("cannot build location for "++show t)
 

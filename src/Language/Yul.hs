@@ -38,12 +38,14 @@ data YulExpression
   = YulCall String [YulExpression]
   | YulIdentifier String
   | YulLiteral YulLiteral
+  deriving Eq
 
 data YulLiteral
   = YulNumber Integer
   | YulString String
   | YulTrue
   | YulFalse
+  deriving Eq
 
 yulInt :: Integral i => i -> YulExpression
 yulInt = YulLiteral . YulNumber . fromIntegral
