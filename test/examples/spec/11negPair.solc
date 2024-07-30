@@ -1,3 +1,4 @@
+
 class  a : Neg {
    function neg(x:a) -> a;
 }
@@ -14,26 +15,26 @@ instance B : Neg {
   }
 }
 
-function fst(p) {
-  match(p) {
-    | Pair[a,b] => return a;
+function fst (p) {
+  match p {
+    | Pair[x,y] => return x;
   };
 }
 
 function snd(p) {
-  match(p) {
-    | Pair[a,b] => return a;
+  match p {
+    | Pair[x,y] => return y;
   };
 }
 
-/*
+
 instance [a:Neg,b:Neg] => Pair[a,b]:Neg {
   function neg(p) {
-    return Pair [neg (fst(p)), neg(snd (p))];
+    return Pair[neg (fst(p)), neg(snd (p))];
   }
 }
-*/
 
+/*
 instance [a:Neg,b:Neg] => Pair[a,b]:Neg {
   function neg(p) {
     match p {
@@ -41,22 +42,22 @@ instance [a:Neg,b:Neg] => Pair[a,b]:Neg {
     };
   }
 }
-
+*/
 contract NegPair {
 
-function bnot(x) {
+ function bnot(x) {
    match x {
      | T => return F;
      | F => return T;
    };
 }
 
-function fromB(b) {
+ function fromB(b) {
   match b  {
     | F => return 0;
     | T => return 1;
   };
 }
 
-function main() { return  fromB(fst(neg(Pair[F,T]))); }
+ function main() { return  fromB(fst(neg(Pair[F,T]))); }
 }
