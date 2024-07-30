@@ -315,9 +315,11 @@ emitSumMatch allCons scrutinee alts = do
       emitEqn expr ([pat@(PCon con patargs)], stmts) = withLocalState do
         let pvars = translatePatArgs expr patargs
         extendVSubst pvars
+        let comment = Core.SComment (pretty pat)
         coreStmts <- emitStmts stmts
-        debug ["emitEqn: ", pretty pat, " / ", show expr, " -> ", show coreStmts]
-        return (pat, coreStmts)
+        let coreStmts' = comment : coreStmts
+        debug ["emitEqn: ", pretty pat, " / ", show expr, " -> ", show coreStmts']
+        return (pat, coreStmts')
 
       -- TODO: emitEqns should process the eqns in constructor declaration order
       -- e.g. if we have data B = F | T and then match b | T => ... | F => ...
