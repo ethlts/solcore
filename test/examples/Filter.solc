@@ -1,6 +1,5 @@
 data List[a] = Nil | Cons[a,List[a]]
 data Bool = False | True 
-data Either[a,b] = Left[a] | Right[b]
 
 function and(x,y) {
   match x, y {
@@ -22,16 +21,6 @@ instance Word : Eq {
   }
 }
 
-function either(f,g,r) {
-  match r {
-  | Left[a] => return f(a);
-  | Right[b] => return g(b);
-  };
-}
-
-function foo () {
-  return either ((lam (x) {return True;}), (lam (x) {return False ;}), Right[1]);
-}
 
 function filter (f, xs) {
   match xs {
@@ -42,10 +31,6 @@ function filter (f, xs) {
     | True => return Cons[y,filter(f,ys)];
     };
   };
-}
-
-function idList (xs) {
-  return filter ((lam (x) {return True ;}), xs);
 }
 
 function list1 () {

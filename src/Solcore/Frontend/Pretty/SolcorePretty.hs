@@ -117,7 +117,8 @@ instance Pretty a => Pretty (Signature a) where
     = text "function" <+> 
       ppr n           <+>
       pprContext False ctx  <+> 
-      pprParams ps
+      pprParams ps <+> 
+      pprRetTy ty 
 
 instance Pretty a => Pretty (Instance a) where 
   ppr (Instance ctx n tys ty funs)
