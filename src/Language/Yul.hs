@@ -2,9 +2,9 @@ module Language.Yul where
 
 import Common.Pretty
 
-newtype Yul = Yul { yulStmts :: [YulStatement] }
+newtype Yul = Yul { yulStmts :: [YulStmt] }
 instance Show Yul where show = render . ppr
-instance Show YulStatement where show = render . ppr
+instance Show YulStmt where show = render . ppr
 instance Show YulExpression where show = render . ppr
 instance Show YulLiteral where show = render . ppr
 
@@ -15,19 +15,19 @@ pattern YNoReturn :: Maybe a
 pattern YNoReturn = Nothing
 pattern YReturns :: a -> Maybe a
 pattern YReturns a = Just a
-pattern YulAlloc :: Name -> YulStatement
+pattern YulAlloc :: Name -> YulStmt
 pattern YulAlloc name = YulLet [name] Nothing
-pattern YulAssign1 :: Name -> YulExpression -> YulStatement
+pattern YulAssign1 :: Name -> YulExpression -> YulStmt
 pattern YulAssign1 name expr = YulAssign [name] expr
 
-data YulStatement
-  = YulBlock [YulStatement]
-  | YulFun String [YArg] YReturns [YulStatement]
+data YulStmt
+  = YulBlock [YulStmt]
+  | YulFun String [YArg] YReturns [YulStmt]
   | YulLet [String] (Maybe YulExpression)
   | YulAssign [String] YulExpression
-  | YulIf YulExpression [YulStatement]
-  | YulSwitch YulExpression [(YulLiteral, [YulStatement])] (Maybe [YulStatement])
-  | YulForLoop [YulStatement] YulExpression [YulStatement] [YulStatement]
+  | YulIf YulExpression [YulStmt]
+  | YulSwitch YulExpression [(YulLiteral, [YulStmt])] (Maybe [YulStmt])
+  | YulForLoop [YulStmt] YulExpression [YulStmt] [YulStmt]
   | YulBreak
   | YulContinue
   | YulLeave
@@ -55,7 +55,7 @@ yulBool False = YulLiteral YulFalse
 instance Pretty Yul where
   ppr (Yul stmts) = vcat (map ppr stmts)
 
-instance Pretty YulStatement where
+instance Pretty YulStmt where
   ppr (YulBlock stmts) =
     lbrace
       $$ nest 4 (vcat (map ppr stmts))

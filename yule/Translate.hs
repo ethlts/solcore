@@ -6,7 +6,7 @@ import TM
 import Language.Yul
 
 
-genExpr :: Expr -> TM ([YulStatement], Location)
+genExpr :: Expr -> TM ([YulStmt], Location)
 genExpr (EWord n) = pure ([], LocWord n)
 genExpr (EBool b) = pure ([], LocBool b)
 genExpr (EVar name) = do
@@ -62,14 +62,14 @@ flattenLhs LocUnit = []
 flattenLhs LocUndefined = []
 flattenLhs l = error ("flattenLhs: not implemented for "++show l)
 
-genStmtWithComment :: Stmt -> TM [YulStatement]
+genStmtWithComment :: Stmt -> TM [YulStmt]
 genStmtWithComment (SComment c) = pure [YulComment c]
 genStmtWithComment s = do
     let comment = YulComment (show s)
     body <- genStmt s
     pure (comment : body)
 
-genStmt :: Stmt -> TM [YulStatement]
+genStmt :: Stmt -> TM [YulStmt]
 genStmt (SAssembly stmts) = pure stmts
 genStmt (SAlloc name typ) = allocVar name typ
 genStmt (SAssign name expr) = coreAssign name expr
@@ -124,7 +124,7 @@ scanStmt (SFunction name args ret stmts) = do
     insertFun name info
 scanStmt _ = pure ()
 
-genAlts :: Location -> Location -> [Alt] -> TM [(YulLiteral, [YulStatement])]
+genAlts :: Location -> Location -> [Alt] -> TM [(YulLiteral, [YulStmt])]
 genAlts locL locR [Alt lname lstmt, Alt rname rstmt] = do
     yulLStmts <- withName lname locL lstmt
     yulRStmts <- withName rname locR rstmt
@@ -136,7 +136,7 @@ genAlts locL locR [Alt lname lstmt, Alt rname rstmt] = do
 genAlts _ _ _ = error "genAlts: invalid number of alternatives"
 
 
-allocVar :: Name -> Type -> TM [YulStatement]
+allocVar :: Name -> Type -> TM [YulStmt]
 allocVar name typ = do
     (stmts, loc) <- coreAlloc typ
     insertVar name loc
@@ -163,7 +163,7 @@ buildLoc (TSum t1 t2) = do
 buildLoc TUnit = pure LocUnit
 buildLoc t = error ("cannot build location for "++show t)
 
-coreAlloc :: Type -> TM ([YulStatement], Location)
+coreAlloc :: Type -> TM ([YulStmt], Location)
 coreAlloc t = do
     loc <- buildLoc t
     let stmts = allocLoc loc
@@ -175,17 +175,17 @@ stackSlots (LocPair l r) = stackSlots l `union` stackSlots r
 stackSlots (LocSum tag l r) = stackSlots tag `union` stackSlots l `union` stackSlots r
 stackSlots _ = []
 
-allocLoc :: Location -> [YulStatement]
+allocLoc :: Location -> [YulStmt]
 allocLoc loc = [YulAlloc (stkLoc i) | i <- stackSlots loc]
 
-allocWord :: TM ([YulStatement], Location)
+allocWord :: TM ([YulStmt], Location)
 allocWord = do
     n <- freshId
     let loc = LocStack n
     pure ([YulAlloc (stkLoc n)], loc)
 
 
-coreAssign :: Expr -> Expr -> TM [YulStatement]
+coreAssign :: Expr -> Expr -> TM [YulStmt]
 coreAssign lhs rhs = do
     (stmts1, locLhs) <- genExpr lhs
     (stmts2, locRhs) <- genExpr rhs
@@ -199,7 +199,7 @@ loadLoc (LocStack i) = YulIdentifier (stkLoc i)
 loadLoc loc = error ("cannot loadLoc "++show loc)
 
 -- copyLocs l r copies the value of r to l
-copyLocs :: HasCallStack => Location -> Location -> [YulStatement]
+copyLocs :: HasCallStack => Location -> Location -> [YulStmt]
 copyLocs (LocStack i) r@(LocWord _) = [YulAssign [stkLoc i] (loadLoc r)]
 copyLocs (LocStack i) r@(LocBool _) = [YulAssign [stkLoc i] (loadLoc r)]
 copyLocs (LocStack i) r@(LocStack _) = [YulAssign [stkLoc i] (loadLoc r)]
@@ -219,7 +219,7 @@ copyLocs (LocSum ltag l1 l2) (LocSum rtag r1 r2) =  copyLocs ltag rtag ++ (copyS
 copyLocs LocUnit LocUnit = []
 copyLocs l r = error $ "copy: type mismatch - LHS: " ++ show l ++ " RHS: " ++ show r
 
-genStmts :: [Stmt] -> TM [YulStatement]
+genStmts :: [Stmt] -> TM [YulStmt]
 genStmts stmts = do
     mapM_ scanStmt stmts   -- scan for functions and record their types
     concat <$> mapM genStmtWithComment stmts

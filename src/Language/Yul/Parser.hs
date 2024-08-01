@@ -62,8 +62,8 @@ yulLiteral = choice
     , YulFalse <$ pKeyword "false"
     ]
 
-yulStatement :: Parser YulStatement
-yulStatement = choice
+yulStmt :: Parser YulStmt
+yulStmt = choice
     [ YulBlock <$> yulBlock
     , yulFun
     , YulLet <$> (pKeyword "let" *> commaSep identifier) <*> optional (symbol ":=" *> yulExpression)
@@ -76,17 +76,17 @@ yulStatement = choice
     , YulExpression <$> yulExpression
     ]
 
-yulBlock :: Parser [YulStatement]
-yulBlock = between (symbol "{") (symbol "}") (many yulStatement)
+yulBlock :: Parser [YulStmt]
+yulBlock = between (symbol "{") (symbol "}") (many yulStmt)
 
-yulCase :: Parser (YulLiteral, [YulStatement])
+yulCase :: Parser (YulLiteral, [YulStmt])
 yulCase = do
     _ <- pKeyword "case"
     lit <- yulLiteral
     stmts <- yulBlock
     return (lit, stmts)
 
-yulFun :: Parser YulStatement
+yulFun :: Parser YulStmt
 yulFun = do
     _ <- symbol "function"
     name <- identifier
@@ -96,4 +96,4 @@ yulFun = do
     return (YulFun name args rets stmts)
 
 yulProgram :: Parser Yul
-yulProgram = sc *> (Yul <$> many yulStatement) <* eof
+yulProgram = sc *> (Yul <$> many yulStmt) <* eof

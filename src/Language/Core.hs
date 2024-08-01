@@ -33,7 +33,7 @@ data Stmt
     = SAssign Expr Expr
     | SAlloc Name Type
     | SExpr Expr
-    | SAssembly [YulStatement]
+    | SAssembly [YulStmt]
     | SReturn Expr
     | SComment String
     | SBlock [Stmt]
