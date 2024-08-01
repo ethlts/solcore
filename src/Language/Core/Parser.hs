@@ -1,6 +1,6 @@
 module Language.Core.Parser where
 import Language.Core
-    ( Core(..),
+    ( Core(..), Contract(..),
       Alt(..),
       Arg(..),
       Stmt(SExpr, SAlloc, SReturn, SBlock, SMatch, SFunction, SAssign, SAssembly, SRevert),
@@ -13,6 +13,9 @@ import Language.Yul.Parser(parseYul, yulBlock)
 
 parseCore :: String -> Core
 parseCore = runMyParser "core" coreProgram
+
+parseContract :: String -> String -> Contract
+parseContract filename = runMyParser filename coreContract
 
 -- Note: this module repeats some definitions from YulParser.Name
 -- This is intentional as we may want to make different syntax choices
@@ -45,6 +48,9 @@ stringLiteral = lexeme (char '"' *> manyTill L.charLiteral (char '"'))
 
 parens :: Parser a -> Parser a
 parens = between (symbol "(") (symbol ")")
+
+braces :: Parser a -> Parser a
+braces = between (symbol "{") (symbol "}")
 
 commaSep :: Parser a -> Parser [a]
 commaSep p = p `sepBy` symbol ","
@@ -119,3 +125,7 @@ coreAlt = choice
 
 coreProgram :: Parser Core
 coreProgram = sc *> (Core <$> many coreStmt) <* eof
+
+coreContract :: Parser Contract
+coreContract = sc *> (Contract <$> (pKeyword "contract" *> identifier )
+                  <*> braces(many coreStmt)) <* eof

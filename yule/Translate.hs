@@ -225,7 +225,10 @@ genStmts stmts = do
     concat <$> mapM genStmtWithComment stmts
 
 translateCore :: Core -> TM Yul
-translateCore (Core stmts) = do
+translateCore (Core stmts) = translateStmts stmts
+
+translateStmts :: [Stmt] -> TM Yul
+translateStmts stmts = do
     -- assuming the result goes into `_wrapresult`
     let hasMain = any isMain stmts
     if hasMain
