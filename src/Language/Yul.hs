@@ -1,8 +1,10 @@
 module Language.Yul where
+import Data.Generics (Data, Typeable)
 
 import Common.Pretty
 import Solcore.Frontend.Syntax.Name
 import Solcore.Frontend.Pretty.SolcorePretty()
+
 
 newtype Yul = Yul { yulStmts :: [YulStmt] }
 instance Show Yul where show = render . ppr
@@ -34,17 +36,20 @@ data YulStmt
   | YLeave
   | YComment String
   | YExp YulExp
+  deriving (Eq, Ord, Data, Typeable)
 
 data YulExp
   = YCall String [YulExp]
   | YIdent String
   | YLit YLiteral
+   deriving (Eq, Ord, Data, Typeable)
 
 data YLiteral
   = YulNumber Integer
   | YulString String
   | YulTrue
   | YulFalse
+  deriving (Eq, Ord, Data, Typeable)
 
 yulInt :: Integral i => i -> YulExp
 yulInt = YLit . YulNumber . fromIntegral
