@@ -42,7 +42,7 @@ genExpr (ECall name args) = do
     let yulArgs = concatMap flattenRhs argLocs
     funInfo <- lookupFun name
     (resultCode, resultLoc) <- coreAlloc (fun_result funInfo)
-    let callExpr = YCall name yulArgs
+    let callExpr = YCall (fromString name) yulArgs
     let callCode = [YAssign (flattenLhs resultLoc) callExpr]
     pure (argsCode++resultCode++callCode, resultLoc)
 genExpr e = error ("genExpr: not implemented for "++show e)

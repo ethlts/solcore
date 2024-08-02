@@ -53,8 +53,8 @@ pKeyword w = lexeme (string w <* notFollowedBy identChar)
 yulExpression :: Parser YulExp
 yulExpression = choice
     [ YLit <$> yulLiteral
-    , try (YCall <$> identifier <*> parens (commaSep yulExpression))
-    , YIdent <$> identifier
+    , try (YCall <$> pName<*> parens (commaSep yulExpression))
+    , YIdent <$> pName
     ]
 
 yulLiteral :: Parser YLiteral

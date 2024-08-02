@@ -1,3 +1,4 @@
+{-# LANGUAGE InstanceSigs #-}
 module Language.Yul where
 import Data.Generics (Data, Typeable)
 
@@ -46,8 +47,8 @@ data YulStmt
   deriving (Eq, Ord, Data, Typeable)
 
 data YulExp
-  = YCall String [YulExp]
-  | YIdent String
+  = YCall Name [YulExp]
+  | YIdent Name
   | YLit YLiteral
    deriving (Eq, Ord, Data, Typeable)
 
@@ -106,8 +107,9 @@ instance Pretty YulStmt where
   ppr (YExp e) = ppr e
 
 instance Pretty YulExp where
-  ppr (YCall name args) = text name >< parens (hsep (punctuate comma (map ppr args)))
-  ppr (YIdent name) = text name
+  ppr :: YulExp -> Doc
+  ppr (YCall name args) = ppr name >< parens (hsep (punctuate comma (map ppr args)))
+  ppr (YIdent name) = ppr name
   ppr (YLit lit) = ppr lit
 
 instance Pretty YLiteral where
