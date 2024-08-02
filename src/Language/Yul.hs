@@ -3,7 +3,8 @@ import Data.Generics (Data, Typeable)
 
 import Common.Pretty
 import Solcore.Frontend.Syntax.Name
-import Solcore.Frontend.Pretty.SolcorePretty()
+
+import Solcore.Frontend.Pretty.Name
 
 
 newtype Yul = Yul { yulStmts :: [YulStmt] }

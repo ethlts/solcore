@@ -1,3 +1,4 @@
+{-# LANGUAGE InstanceSigs #-}
 module Solcore.Frontend.Pretty.SolcorePretty(module Common.Pretty, pretty) where
 
 import Data.List
@@ -6,10 +7,11 @@ import Prelude hiding ((<>))
 
 import Solcore.Frontend.Syntax.Contract
 import Solcore.Frontend.Syntax.Name 
+import Solcore.Frontend.Pretty.Name
 import Solcore.Frontend.Syntax.Stmt 
 import Solcore.Frontend.Syntax.Ty
 import Solcore.Frontend.TypeInference.NameSupply
-import Solcore.Frontend.TypeInference.TcSubst 
+import Solcore.Frontend.TypeInference.TcSubst
 
 import Common.Pretty
 
@@ -331,23 +333,11 @@ pprTyParams [] = empty
 pprTyParams ts 
   = brackets (commaSep (map ppr ts))
 
-instance Pretty Name where 
-  ppr = text . unName
-
-instance Pretty QualName where 
-  ppr = dotSep . map ppr . unQName
 
 instance Pretty Subst where 
   ppr = braces . commaSep . map go . unSubst
     where 
       go (v,t) = ppr v <+> text "+->" <+> ppr t
 
-dotSep :: [Doc] -> Doc
-dotSep = hcat . punctuate dot 
-         where 
-          dot = text "."
-
-commaSep :: [Doc] -> Doc
-commaSep = hsep . punctuate comma 
 
 

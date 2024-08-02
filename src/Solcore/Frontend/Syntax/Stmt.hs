@@ -20,6 +20,7 @@ data Stmt a
   deriving (Eq, Ord, Show, Data, Typeable)
 
 type Body a = [Stmt a]
+
 type YulBlock = [YulStmt]
 
 data YulStmt 
