@@ -2,7 +2,7 @@ module Language.Core where
 import Common.Pretty
 import Language.Yul
 
--- type Name = String
+type Name = String
 
 data Type
     = TWord

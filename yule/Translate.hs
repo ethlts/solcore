@@ -1,10 +1,13 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Translate where
 import Data.List(union)
 import GHC.Stack
-import Language.Core
+import Language.Core hiding(Name)
+import qualified Language.Core as Core
 import TM
 import Language.Yul
-
+import Solcore.Frontend.Syntax.Name
+import Data.String
 
 genExpr :: Expr -> TM ([YulStmt], Location)
 genExpr (EWord n) = pure ([], LocWord n)
@@ -97,13 +100,13 @@ genStmt (SFunction name args ret stmts) = withLocalEnv do
     yulArgs <- placeArgs args
     yulResult <- place "_result" ret  -- TODO: special handling of unit
     yulBody <- genStmts stmts
-    return [YulFun name yulArgs (YReturns yulResult) yulBody]
+    return [YulFun (fromString name) yulArgs (YReturns yulResult) yulBody]
     where
         placeArgs :: [Arg] -> TM [Name]
         placeArgs as = concat <$> mapM placeArg as
         placeArg :: Arg -> TM [Name]
         placeArg (TArg name typ) = place name typ
-        place :: Name -> Type -> TM [Name]
+        place :: Core.Name -> Type -> TM [Name]
         place name typ = do
             loc <- buildLoc typ
             insertVar name loc
@@ -136,7 +139,7 @@ genAlts locL locR [Alt lname lstmt, Alt rname rstmt] = do
 genAlts _ _ _ = error "genAlts: invalid number of alternatives"
 
 
-allocVar :: Name -> Type -> TM [YulStmt]
+allocVar :: Core.Name -> Type -> TM [YulStmt]
 allocVar name typ = do
     (stmts, loc) <- coreAlloc typ
     insertVar name loc

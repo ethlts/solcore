@@ -7,7 +7,7 @@ import Data.Void
 import Common.LightYear
 import Text.Megaparsec.Char.Lexer qualified as L
 import Language.Yul
-
+import Solcore.Frontend.Syntax.Name(Name(..))
 
 parseYul :: String -> Yul
 parseYul = runMyParser "yul" yulProgram
@@ -31,6 +31,9 @@ identChar = alphaNumChar <|> char '_' <|> char '$'
 
 identifier :: Parser String
 identifier = lexeme ((:) <$> startIdentChar <*> many identChar)
+
+pName :: Parser Name
+pName = Name <$> identifier
 
 integer :: Parser Integer
 integer = lexeme L.decimal
@@ -66,13 +69,13 @@ yulStmt :: Parser YulStmt
 yulStmt = choice
     [ YulBlock <$> yulBlock
     , yulFun
-    , YulLet <$> (pKeyword "let" *> commaSep identifier) <*> optional (symbol ":=" *> yulExpression)
+    , YulLet <$> (pKeyword "let" *> commaSep pName) <*> optional (symbol ":=" *> yulExpression)
     , YulIf <$> (pKeyword "if" *> yulExpression) <*> yulBlock
     , YulSwitch <$>
         (pKeyword "switch" *> yulExpression) <*>
         many yulCase <*>
         optional (pKeyword "default" *> yulBlock)
-    , try (YulAssign <$> commaSep identifier <*> (symbol ":=" *> yulExpression))
+    , try (YulAssign <$> commaSep pName <*> (symbol ":=" *> yulExpression))
     , YulExpression <$> yulExpression
     ]
 
@@ -89,11 +92,10 @@ yulCase = do
 yulFun :: Parser YulStmt
 yulFun = do
     _ <- symbol "function"
-    name <- identifier
-    args <- parens (commaSep identifier)
-    rets <- optional (symbol "->" *> (commaSep identifier))
-    stmts <- yulBlock
-    return (YulFun name args rets stmts)
+    name <- pName
+    args <- parens (commaSep pName)
+    rets <- optional (symbol "->" *> commaSep pName)
+    YulFun name args rets <$> yulBlock
 
 yulProgram :: Parser Yul
 yulProgram = sc *> (Yul <$> many yulStmt) <* eof

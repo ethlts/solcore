@@ -1,6 +1,8 @@
 module Language.Yul where
 
 import Common.Pretty
+import Solcore.Frontend.Syntax.Name
+import Solcore.Frontend.Pretty.SolcorePretty()
 
 newtype Yul = Yul { yulStmts :: [YulStmt] }
 instance Show Yul where show = render . ppr
@@ -8,7 +10,6 @@ instance Show YulStmt where show = render . ppr
 instance Show YulExpression where show = render . ppr
 instance Show YulLiteral where show = render . ppr
 
-type Name = String
 type YArg = Name
 type YReturns = Maybe [Name]
 pattern YNoReturn :: Maybe a
@@ -22,9 +23,9 @@ pattern YulAssign1 name expr = YulAssign [name] expr
 
 data YulStmt
   = YulBlock [YulStmt]
-  | YulFun String [YArg] YReturns [YulStmt]
-  | YulLet [String] (Maybe YulExpression)
-  | YulAssign [String] YulExpression
+  | YulFun Name [YArg] YReturns [YulStmt]
+  | YulLet [Name] (Maybe YulExpression)
+  | YulAssign [Name] YulExpression
   | YulIf YulExpression [YulStmt]
   | YulSwitch YulExpression [(YulLiteral, [YulStmt])] (Maybe [YulStmt])
   | YulForLoop [YulStmt] YulExpression [YulStmt] [YulStmt]
@@ -62,24 +63,24 @@ instance Pretty YulStmt where
       $$ rbrace
   ppr (YulFun name args rets stmts) =
     text "function"
-      <+> text name
+      <+> ppr name
       <+> prettyargs
       <+> prettyrets rets
       <+> lbrace
       $$ nest 4 (vcat (map ppr stmts))
       $$ rbrace
     where
-        prettyargs = parens (hsep (punctuate comma (map text args)))
+        prettyargs = parens (commaSepList args)
         prettyrets Nothing = empty
-        prettyrets (Just rs) = text "->" <+> (hsep (punctuate comma (map text rs)))
+        prettyrets (Just rs) = text "->" <+> commaSepList rs
   ppr (YulLet vars expr) =
-    text "let" <+> hsep (punctuate comma (map text vars))
+    text "let" <+> commaSepList vars
                <+> maybe empty (\e -> text ":=" <+> ppr e) expr
-  ppr (YulAssign vars expr) = hsep (punctuate comma (map text vars)) <+> text ":=" <+> ppr expr
+  ppr (YulAssign vars expr) = commaSepList vars <+> text ":=" <+> ppr expr
   ppr (YulIf cond stmts) = text "if" <+> parens (ppr cond) <+> ppr (YulBlock stmts)
   ppr (YulSwitch expr cases def) =
     text "switch"
-      <+> (ppr expr)
+      <+> ppr expr
       $$ nest 4 (vcat (map (\(lit, stmts) -> text "case" <+> ppr lit <+> ppr (YulBlock stmts)) cases))
       $$ maybe empty (\stmts -> text "default" <+> ppr (YulBlock stmts)) def
   ppr (YulForLoop pre cond post stmts) =
@@ -103,11 +104,14 @@ instance Pretty YulLiteral where
   ppr YulTrue = text "true"
   ppr YulFalse = text "false"
 
+commaSepList :: Pretty a => [a] -> Doc
+commaSepList = hsep . punctuate comma . map ppr
+
 {- | wrap a Yul chunk in a Solidity function with the given name
    assumes result is in a variable named "_result"
 -}
 wrapInSolFunction :: Pretty a => Name -> a -> Doc
-wrapInSolFunction name yul = text "function" <+> text name <+> prettyargs <+> text " public pure returns (uint256 _wrapresult)" <+> lbrace
+wrapInSolFunction name yul = text "function" <+> ppr name <+> prettyargs <+> text " public pure returns (uint256 _wrapresult)" <+> lbrace
   $$ nest 2 assembly
   $$ rbrace
   where
@@ -121,12 +125,12 @@ wrapInContract name entry body = empty
   $$ text "// SPDX-License-Identifier: UNLICENSED"
   $$ text "pragma solidity ^0.8.23;"
   $$ text "import {console,Script} from \"lib/stdlib.sol\";"
-  $$ text "contract" <+> text name <+> text "is Script"<+> lbrace
+  $$ text "contract" <+> ppr name <+> text "is Script"<+> lbrace
   $$ nest 2 run
   $$ nest 2 body
   $$ rbrace
 
   where
     run = text "function run() public view" <+> lbrace
-      $$ nest 2 (text "console.log(\"RESULT --> \","<+> text entry >< text ");")
+      $$ nest 2 (text "console.log(\"RESULT --> \","<+> ppr entry >< text ");")
       $$ rbrace $$ text ""
