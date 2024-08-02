@@ -4,14 +4,15 @@ module Language.Core
   ( Expr(..), Stmt(..), Arg(..), Alt(..), Contract(..), Core(..)
   , module Language.Core.Types
   ,  pattern SAV
+  , Name
   ) where
 
 import Common.Pretty
 import Language.Core.Types
 import Language.Yul
--- type Name = String
 
 
+type Name = String
 
 data Expr
     = EWord Integer
@@ -33,7 +34,7 @@ data Stmt
     = SAssign Expr Expr
     | SAlloc Name Type
     | SExpr Expr
-    | SAssembly [YulStatement]
+    | SAssembly [YulStmt]
     | SReturn Expr
     | SComment String
     | SBlock [Stmt]

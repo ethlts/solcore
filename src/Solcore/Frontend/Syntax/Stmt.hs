@@ -4,7 +4,7 @@ import Data.Generics (Data, Typeable)
 
 import Solcore.Frontend.Syntax.Name
 import Solcore.Frontend.Syntax.Ty
-
+import Language.Yul
 -- definition of statements 
 
 type Equation a = ([Pat a], [Stmt a])
@@ -20,30 +20,6 @@ data Stmt a
   deriving (Eq, Ord, Show, Data, Typeable)
 
 type Body a = [Stmt a]
-type YulBlock = [YulStmt]
-
-data YulStmt 
-  = YAssign [Name] YulExp
-  | YBlock YulBlock
-  | YLet [Name] YulExp 
-  | YExp YulExp 
-  | YIf YulExp YulBlock 
-  | YSwitch YulExp YulCases YulDefault
-  | YFor YulBlock YulExp YulBlock YulBlock 
-  | YContinue 
-  | YBreak 
-  | YLeave 
-  deriving (Eq, Ord, Show, Data, Typeable)
-
-type YulCases = [YulCase] 
-type YulCase = (Literal, YulBlock)
-type YulDefault = Maybe (YulBlock)
-
-data YulExp 
-  = YLit Literal 
-  | YIdent Name 
-  | YCall Name [YulExp]
-  deriving (Eq, Ord, Show, Data, Typeable)
 
 data Param a 
   = Typed a Ty 

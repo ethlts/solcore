@@ -16,6 +16,8 @@ import Solcore.Frontend.TypeInference.TcSubst
 import Solcore.Frontend.TypeInference.TcUnify
 import Solcore.Primitives.Primitives
 
+import Language.Yul
+
 import Text.PrettyPrint.HughesPJ
 
 -- type inference for statements
@@ -269,7 +271,7 @@ tcYulStmt (YBlock yblk)
       _ <- tcYulBlock yblk 
       -- names defined in should not return 
       pure []
-tcYulStmt (YLet ns e)
+tcYulStmt (YLet ns (Just e))
   = do 
       tcYulExp e 
       mapM_ (flip extEnv mword) ns 
@@ -301,7 +303,7 @@ tcYulStmt _ = pure []
 
 tcYulExp :: YulExp -> TcM Ty 
 tcYulExp (YLit l) 
-  = tcLit l 
+  = tcYLit l
 tcYulExp (YIdent v)
   = do 
       sch <- askEnv v 
@@ -317,6 +319,10 @@ tcYulExp (YCall n es)
       unless (all (== word) ts) (invalidYulType n)
       unify t (foldr (:->) t' ts)
       withCurrentSubst t'
+
+tcYLit :: YLiteral -> TcM Ty
+tcYLit (YulString _) = return string
+tcYLit (YulNumber _) = return word
 
 tcYulCases :: YulCases -> TcM ()
 tcYulCases = mapM_ tcYulCase 

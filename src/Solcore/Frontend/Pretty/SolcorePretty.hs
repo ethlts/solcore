@@ -1,3 +1,4 @@
+{-# LANGUAGE InstanceSigs #-}
 module Solcore.Frontend.Pretty.SolcorePretty(module Common.Pretty, pretty) where
 
 import Data.List
@@ -6,12 +7,14 @@ import Prelude hiding ((<>))
 
 import Solcore.Frontend.Syntax.Contract
 import Solcore.Frontend.Syntax.Name 
+import Solcore.Frontend.Pretty.Name
 import Solcore.Frontend.Syntax.Stmt 
 import Solcore.Frontend.Syntax.Ty
 import Solcore.Frontend.TypeInference.NameSupply
-import Solcore.Frontend.TypeInference.TcSubst 
+import Solcore.Frontend.TypeInference.TcSubst
 
 import Common.Pretty
+import Language.Yul
 
 -- For compatibility
 (<>) :: Doc -> Doc -> Doc
@@ -185,58 +188,8 @@ instance Pretty a => Pretty (Stmt a) where
       rbrace
   ppr (Asm yblk) 
     = text "assembly" <+> lbrace $$ 
-      ppr yblk $$
+      ppr (YBlock yblk) $$
       rbrace 
-
-instance Pretty YulStmt where 
-  ppr (YAssign ns e) 
-    = commaSep (map ppr ns) <+> 
-      text ":=" <+> 
-      ppr e 
-  ppr (YBlock yblk) 
-    = ppr yblk  
-  ppr (YLet ns e)
-    = text "let" <+> 
-      commaSep (map ppr ns) <+>
-      text ":=" <+> 
-      ppr e 
-  ppr (YExp e) = ppr e 
-  ppr (YIf e yblk)
-    = text "if" <+> ppr e <+> ppr yblk 
-  ppr (YSwitch e cs d)
-    = text "switch" <+> ppr e <+> 
-      lbrace $$
-      nest 3 (vcat (map ppr cs ++ [pprDefault d])) $$
-      rbrace 
-  ppr (YFor init e bdy upd)
-    = text "for" <+> 
-      ppr init <+> 
-      ppr e <+> 
-      ppr bdy <+> 
-      ppr upd
-  ppr YContinue = text "continue"
-  ppr YBreak = text "break"
-  ppr YLeave = text "leave"
-
-instance Pretty (Literal, YulBlock) where 
-  ppr (l,yblk) = text "case " <+> ppr l <+> ppr yblk
-
-instance Pretty YulBlock where 
-  ppr yblk 
-    = lbrace $$ 
-      nest 3 (vcat (map ppr yblk)) $$ 
-      rbrace 
-
-instance Pretty YulExp where 
-  ppr (YLit l) = ppr l 
-  ppr (YIdent n) = ppr n 
-  ppr (YCall n es) 
-    = ppr n <> parens (commaSep (map ppr es))
-
-pprDefault :: Maybe YulBlock -> Doc 
-pprDefault Nothing = empty 
-pprDefault (Just yblk) 
-  = text "default" <+> ppr yblk
 
 instance Pretty a => Pretty (Equation a) where 
   ppr (p,ss) 
@@ -331,23 +284,11 @@ pprTyParams [] = empty
 pprTyParams ts 
   = brackets (commaSep (map ppr ts))
 
-instance Pretty Name where 
-  ppr = text . unName
-
-instance Pretty QualName where 
-  ppr = dotSep . map ppr . unQName
 
 instance Pretty Subst where 
   ppr = braces . commaSep . map go . unSubst
     where 
       go (v,t) = ppr v <+> text "+->" <+> ppr t
 
-dotSep :: [Doc] -> Doc
-dotSep = hcat . punctuate dot 
-         where 
-          dot = text "."
-
-commaSep :: [Doc] -> Doc
-commaSep = hsep . punctuate comma 
 
 
