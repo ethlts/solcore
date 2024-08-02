@@ -7,8 +7,8 @@ import Solcore.Frontend.Pretty.SolcorePretty()
 newtype Yul = Yul { yulStmts :: [YulStmt] }
 instance Show Yul where show = render . ppr
 instance Show YulStmt where show = render . ppr
-instance Show YulExpression where show = render . ppr
-instance Show YulLiteral where show = render . ppr
+instance Show YulExp where show = render . ppr
+instance Show YLiteral where show = render . ppr
 
 type YArg = Name
 type YReturns = Maybe [Name]
@@ -18,40 +18,40 @@ pattern YReturns :: a -> Maybe a
 pattern YReturns a = Just a
 pattern YulAlloc :: Name -> YulStmt
 pattern YulAlloc name = YLet [name] Nothing
-pattern YAssign1 :: Name -> YulExpression -> YulStmt
+pattern YAssign1 :: Name -> YulExp -> YulStmt
 pattern YAssign1 name expr = YAssign [name] expr
 
 data YulStmt
   = YBlock [YulStmt]
   | YFun Name [YArg] YReturns [YulStmt]
-  | YLet [Name] (Maybe YulExpression)
-  | YAssign [Name] YulExpression
-  | YIf YulExpression [YulStmt]
-  | YSwitch YulExpression [(YulLiteral, [YulStmt])] (Maybe [YulStmt])
-  | YFor [YulStmt] YulExpression [YulStmt] [YulStmt]
+  | YLet [Name] (Maybe YulExp)
+  | YAssign [Name] YulExp
+  | YIf YulExp [YulStmt]
+  | YSwitch YulExp [(YLiteral, [YulStmt])] (Maybe [YulStmt])
+  | YFor [YulStmt] YulExp [YulStmt] [YulStmt]
   | YBreak
   | YContinue
   | YLeave
   | YComment String
-  | YExp YulExpression
+  | YExp YulExp
 
-data YulExpression
-  = YulCall String [YulExpression]
-  | YulIdentifier String
-  | YulLiteral YulLiteral
+data YulExp
+  = YCall String [YulExp]
+  | YIdent String
+  | YLit YLiteral
 
-data YulLiteral
+data YLiteral
   = YulNumber Integer
   | YulString String
   | YulTrue
   | YulFalse
 
-yulInt :: Integral i => i -> YulExpression
-yulInt = YulLiteral . YulNumber . fromIntegral
+yulInt :: Integral i => i -> YulExp
+yulInt = YLit . YulNumber . fromIntegral
 
-yulBool :: Bool -> YulExpression
-yulBool True = YulLiteral YulTrue
-yulBool False = YulLiteral YulFalse
+yulBool :: Bool -> YulExp
+yulBool True = YLit YulTrue
+yulBool False = YLit YulFalse
 
 instance Pretty Yul where
   ppr (Yul stmts) = vcat (map ppr stmts)
@@ -93,12 +93,12 @@ instance Pretty YulStmt where
   ppr (YComment c) = text "/*" <+> text c <+> text "*/"
   ppr (YExp e) = ppr e
 
-instance Pretty YulExpression where
-  ppr (YulCall name args) = text name >< parens (hsep (punctuate comma (map ppr args)))
-  ppr (YulIdentifier name) = text name
-  ppr (YulLiteral lit) = ppr lit
+instance Pretty YulExp where
+  ppr (YCall name args) = text name >< parens (hsep (punctuate comma (map ppr args)))
+  ppr (YIdent name) = text name
+  ppr (YLit lit) = ppr lit
 
-instance Pretty YulLiteral where
+instance Pretty YLiteral where
   ppr (YulNumber n) = integer n
   ppr (YulString s) = doubleQuotes (text s)
   ppr YulTrue = text "true"

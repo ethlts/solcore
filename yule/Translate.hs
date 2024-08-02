@@ -42,15 +42,15 @@ genExpr (ECall name args) = do
     let yulArgs = concatMap flattenRhs argLocs
     funInfo <- lookupFun name
     (resultCode, resultLoc) <- coreAlloc (fun_result funInfo)
-    let callExpr = YulCall name yulArgs
+    let callExpr = YCall name yulArgs
     let callCode = [YAssign (flattenLhs resultLoc) callExpr]
     pure (argsCode++resultCode++callCode, resultLoc)
 genExpr e = error ("genExpr: not implemented for "++show e)
 
-flattenRhs :: Location -> [YulExpression]
+flattenRhs :: Location -> [YulExp]
 flattenRhs (LocWord n) = [yulInt n]
 flattenRhs (LocBool b) = [yulBool b]
-flattenRhs (LocStack i) = [YulIdentifier (stkLoc i)]
+flattenRhs (LocStack i) = [YIdent (stkLoc i)]
 flattenRhs (LocPair l r) = flattenRhs l ++ flattenRhs r
 flattenRhs (LocSum t l r) = flattenRhs t ++ flattenRhs l ++ flattenRhs r
 flattenRhs LocUnit = []
@@ -90,7 +90,7 @@ genStmt (SMatch e alts) = do
         LocSum loctag l r -> do
             yulAlts <- genAlts l r alts
             pure (stmts ++ [YSwitch (yultag loctag) yulAlts Nothing]) where
-                yultag (LocStack i) = YulIdentifier (stkLoc i)
+                yultag (LocStack i) = YIdent (stkLoc i)
                 yultag (LocBool b) = yulBool b
                 yultag (LocWord n) = yulInt n
                 yultag t = error ("invalid tag: "++show t)
@@ -113,8 +113,8 @@ genStmt (SFunction name args ret stmts) = withLocalEnv do
             return (flattenLhs loc)
 
 genStmt (SRevert s) = pure
-  [ YExp $ YulCall "mstore" [yulInt 0, YulLiteral (YulString s)]
-  , YExp $ YulCall "revert" [yulInt 0, yulInt (length s)]
+  [ YExp $ YCall "mstore" [yulInt 0, YLit (YulString s)]
+  , YExp $ YCall "revert" [yulInt 0, yulInt (length s)]
   ]
 
 genStmt e = error $ "genStmt unimplemented for: " ++ show e
@@ -127,7 +127,7 @@ scanStmt (SFunction name args ret stmts) = do
     insertFun name info
 scanStmt _ = pure ()
 
-genAlts :: Location -> Location -> [Alt] -> TM [(YulLiteral, [YulStmt])]
+genAlts :: Location -> Location -> [Alt] -> TM [(YLiteral, [YulStmt])]
 genAlts locL locR [Alt lname lstmt, Alt rname rstmt] = do
     yulLStmts <- withName lname locL lstmt
     yulRStmts <- withName rname locR rstmt
@@ -195,10 +195,10 @@ coreAssign lhs rhs = do
     let stmts3 = copyLocs locLhs locRhs
     pure (stmts1 ++ stmts2 ++ stmts3)
 
-loadLoc :: Location -> YulExpression
-loadLoc (LocWord n) = YulLiteral (YulNumber (fromIntegral n))
-loadLoc (LocBool b) = YulLiteral (if b then YulTrue else YulFalse)
-loadLoc (LocStack i) = YulIdentifier (stkLoc i)
+loadLoc :: Location -> YulExp
+loadLoc (LocWord n) = YLit (YulNumber (fromIntegral n))
+loadLoc (LocBool b) = YLit (if b then YulTrue else YulFalse)
+loadLoc (LocStack i) = YIdent (stkLoc i)
 loadLoc loc = error ("cannot loadLoc "++show loc)
 
 -- copyLocs l r copies the value of r to l
@@ -213,7 +213,7 @@ copyLocs (LocSum ltag l1 l2) (LocSum rtag r1 r2) =  copyLocs ltag rtag ++ (copyS
         False -> copyLocs l1 r1   -- explicit inl
         True -> copyLocs l2 r2    -- explicit inr
 
-    copySum (LocStack i) = [YSwitch (YulIdentifier (stkLoc i))
+    copySum (LocStack i) = [YSwitch (YIdent (stkLoc i))
                 [ (YulNumber 0, copyLocs l1 r1)
                 , (YulNumber 1, copyLocs l2 r2)
                 ]
@@ -239,7 +239,7 @@ translateStmts stmts = do
       else writeln "no main found, adding one"
     let stmts' = if hasMain then stmts else addMain stmts
     payload <- genStmts stmts'
-    let resultExp = YulCall "main" []
+    let resultExp = YCall "main" []
     let epilog = [YAssign1 "_wrapresult" resultExp]
     return $ Yul ( payload ++ epilog )
 

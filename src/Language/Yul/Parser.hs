@@ -50,14 +50,14 @@ commaSep p = p `sepBy` symbol ","
 pKeyword :: String -> Parser String
 pKeyword w = lexeme (string w <* notFollowedBy identChar)
 
-yulExpression :: Parser YulExpression
+yulExpression :: Parser YulExp
 yulExpression = choice
-    [ YulLiteral <$> yulLiteral
-    , try (YulCall <$> identifier <*> parens (commaSep yulExpression))
-    , YulIdentifier <$> identifier
+    [ YLit <$> yulLiteral
+    , try (YCall <$> identifier <*> parens (commaSep yulExpression))
+    , YIdent <$> identifier
     ]
 
-yulLiteral :: Parser YulLiteral
+yulLiteral :: Parser YLiteral
 yulLiteral = choice
     [ YulNumber <$> integer
     , YulString <$> stringLiteral
@@ -82,7 +82,7 @@ yulStmt = choice
 yulBlock :: Parser [YulStmt]
 yulBlock = between (symbol "{") (symbol "}") (many yulStmt)
 
-yulCase :: Parser (YulLiteral, [YulStmt])
+yulCase :: Parser (YLiteral, [YulStmt])
 yulCase = do
     _ <- pKeyword "case"
     lit <- yulLiteral
