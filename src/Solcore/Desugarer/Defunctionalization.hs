@@ -82,8 +82,8 @@ defunM cunit@(CompUnit imps decls)
       dts <- mapM createDataTy mdef  
       liftIO $ mapM (putStrLn . pretty) dts
       -- FIXME Need to create an unique apply for function!
-      -- dap <- zipWithM createApply mdef dts
-      -- liftIO $ mapM (putStrLn . pretty) dap
+      dap <- zipWithM createApply mdef dts
+      liftIO $ mapM (putStrLn . pretty) dap
       return cunit
 
 -- definition of a type to hold lambda abstractions in code 
@@ -100,134 +100,123 @@ instance Show LamDef where
 
 -- create apply function 
 
--- createApply :: (Name, [(Int, [LamDef])]) -> DataTy -> DefunM (FunDef Id)
--- createApply x@(n, (p, ldefs)) dt 
---   = do 
---       (lp, sig) <- createApplySignature x dt
---       let cons = zip ldefs (dataConstrs dt)
---       bd <- createApplyBody sig lp cons 
---       pure (FunDef sig bd)
+createApply :: (Name, [(Int, [LamDef])]) -> DataTy -> DefunM (FunDef Id)
+createApply x@(n, ldefs) dt 
+  = do 
+      (lp, sig) <- createApplySignature x dt
+      let cons = zip (concatMap snd ldefs) (dataConstrs dt)
+      bd <- createApplyBody sig lp cons 
+      pure (FunDef sig bd)
 
--- createApplySignature :: (Name, [(Int, [LamDef])]) -> 
---                         DataTy -> 
---                         DefunM ([Param Id], Signature Id)
--- createApplySignature (v@(Name n), pdefs) dt 
---   = do
---       let (ps, ldefs) = unzip pdefs 
---       -- getting the function type 
---       sig <- askSig v
---       lt <- mapM (lamParam (sigParams sig)) ps 
---       -- building the argument list 
---       (t, args) <- mkParamList (idFrom lt) dt
---       let lp = map (args !!) ps
---       pure (lp, Signature n' [] args (Just t))
---     where 
---       n' = Name ("apply_" ++ n)
---       idFrom (Typed x _) = x 
---       idFrom (Untyped x) = x
+createApplySignature :: (Name, [(Int, [LamDef])]) -> 
+                        DataTy -> 
+                        DefunM (Param Id, Signature Id) 
+createApplySignature (v@(Name n), pdefs) dt 
+  = do 
+      let (pos, ldefs) = unzip pdefs 
+          n' = Name ("apply_" ++ n)
+      -- getting function signature 
+      sig <- askSig v 
+      lts <- mapM (lamParam (sigParams sig)) pos 
+      lp <- mkParam dt
+      let args' = lp : (sigParams sig \\ lts)
+      pure (lp, Signature n' [] args' (sigReturn sig))
 
--- lamParam :: [Param Id] -> Int -> DefunM (Param Id) 
--- lamParam ts p 
---   = case splitAt (p + 1) ts of 
---       (ts', _) -> 
---         case unsnoc ts' of 
---           Just (_, lt) -> pure lt 
---           Nothing -> throwError "Impossible! lamType!"
+lamParam :: [Param Id] -> Int -> DefunM (Param Id) 
+lamParam ts p 
+  = case splitAt (p + 1) ts of 
+      (ts', _) -> 
+        case unsnoc ts' of 
+          Just (_, lt) -> pure lt 
+          Nothing -> throwError "Impossible! lamType!"
 
--- mkParamList :: Id -> DataTy -> DefunM (Ty, [Param Id])
--- mkParamList (Id _ lt) dt 
---   = do       
---       let tc = TyCon (dataName dt) (TyVar <$> dataParams dt)
---           (largs, t) = splitTy lt 
---           argTys = tc : largs
---       ps <- mapM mkParam argTys 
---       pure (t, ps)
+mkParam :: DataTy -> DefunM (Param Id)
+mkParam dt 
+  = do 
+      let tc = TyCon (dataName dt) (TyVar <$> dataParams dt)
+      n <- freshName 
+      pure (Typed (Id n tc) tc)
 
--- mkParam :: Ty -> DefunM (Param Id)
--- mkParam t 
---   = do 
---       n <- freshName 
---       pure (Typed (Id n t) t)
 
--- createApplyBody :: Signature Id -> 
---                    Param Id -> 
---                    [(LamDef, Constr)] -> DefunM (Body Id)
--- createApplyBody sig p@(Typed v t) ldefs 
---   = do 
---       let args = (sigParams sig) \\ [p]
---       eqns <- mapM (mkEquation sig t args) ldefs 
---       pure [Match [Var v] eqns]
+createApplyBody :: Signature Id -> 
+                   Param Id -> 
+                   [(LamDef, Constr)] -> DefunM (Body Id)
+createApplyBody sig p@(Typed v t) ldefs 
+  = do 
+      let args = (sigParams sig) \\ [p]
+      eqns <- mapM (mkEquation sig t args) ldefs 
+      pure [Match [Var v] eqns]
 
--- mkEquation :: Signature Id -> 
---               Ty ->
---               [Param Id] -> 
---               (LamDef, Constr) -> 
---               DefunM (Equation Id)
--- mkEquation sig t args (ldef, c) 
---   = do
---       p <- mkPat t c
---       bd <- mkBody sig p ldef t args  
---       pure ([p], bd)
+mkEquation :: Signature Id -> 
+              Ty ->
+              [Param Id] -> 
+              (LamDef, Constr) -> 
+              DefunM (Equation Id)
+mkEquation sig t args (ldef, c) 
+  = do
+      p <- mkPat t c
+      bd <- mkBody sig p ldef t args  
+      pure ([p], bd)
 
--- mkPat :: Ty -> Constr -> DefunM (Pat Id)
--- mkPat t (Constr n ts)
---   = do 
---       ps <- mapM mkPVar ts 
---       let tf = funtype ts t 
---       pure (PCon (Id n tf) ps)
---     where 
---       mkPVar t' = do 
---         n' <- freshName 
---         pure (PVar (Id n' t'))
+mkPat :: Ty -> Constr -> DefunM (Pat Id)
+mkPat t (Constr n ts)
+  = do 
+      ps <- mapM mkPVar ts 
+      let tf = funtype ts t 
+      pure (PCon (Id n tf) ps)
+    where 
+      mkPVar t' = do 
+        n' <- freshName 
+        pure (PVar (Id n' t'))
 
--- mkBody :: Signature Id -> 
---           Pat Id -> 
---           LamDef -> 
---           Ty -> 
---           [Param Id] -> 
---           DefunM (Body Id)
--- mkBody sig p ldef t args 
---   = do
---       ns <- gets defs
---       apid <- idFromSignature sig
---       let s = mkRename ns p ldef args
---           bd = renameBody s (lamBody ldef)
---       everywhereM (mkM (changeCall apid p t)) bd
+mkBody :: Signature Id -> 
+          Pat Id -> 
+          LamDef -> 
+          Ty -> 
+          [Param Id] -> 
+          DefunM (Body Id)
+mkBody sig p ldef t args 
+  = do
+      ns <- gets defs
+      apid <- idFromSignature sig
+      let s = mkRename ns p ldef args
+          bd = renameBody s (lamBody ldef)
+      everywhereM (mkM (changeCall apid p t)) bd
 
--- idFromSignature :: Signature Id -> DefunM Id 
--- idFromSignature sig 
---   = do 
---       t <- maybe err pure (sigReturn sig)
---       pure $ Id (sigName sig) (funtype ts t)
---     where
---       ts = map tyParam (sigParams sig)
---       err = throwError "Impossible --- idFromSignature"
---       tyParam (Typed (Id _ t) _) = t
---       tyParam (Untyped (Id _ t)) = t
+idFromSignature :: Signature Id -> DefunM Id 
+idFromSignature sig 
+  = do 
+      t <- maybe err pure (sigReturn sig)
+      pure $ Id (sigName sig) (funtype ts t)
+    where
+      ts = map tyParam (sigParams sig)
+      err = throwError "Impossible --- idFromSignature"
+      tyParam (Typed (Id _ t) _) = t
+      tyParam (Untyped (Id _ t)) = t
 
--- changeCall :: Id -> Pat Id -> Ty -> Exp Id -> DefunM (Exp Id)
--- changeCall fid (PCon _ ps) t e@(Call me cid args) 
---   | (idName cid) `elem` (map idName $ vars ps)
---     = do
---         let args' = Var (Id (idName cid) t) : args
---         pure $ Call me fid args'
---   | otherwise = pure e
--- changeCall _ _ _ e = pure e
+changeCall :: Id -> Pat Id -> Ty -> Exp Id -> DefunM (Exp Id)
+changeCall fid (PCon _ ps) t e@(Call me cid args) 
+  | (idName cid) `elem` (map idName $ vars ps)
+    = do
+        let args' = Var (Id (idName cid) t) : args
+        pure $ Call me fid args'
+  | otherwise = pure e
+changeCall _ _ _ e = pure e
 
--- renameBody :: [(Name, Name)] -> Body Id -> Body Id
--- renameBody s bd 
---   = everywhere (mkT (applyN s)) bd 
---     where 
---       applyN s (Id n' t) 
---         = Id (maybe n' id (lookup n' s)) t 
+renameBody :: [(Name, Name)] -> Body Id -> Body Id
+renameBody s bd 
+  = everywhere (mkT (applyN s)) bd 
+    where 
+      applyN s (Id n' t) 
+        = Id (maybe n' id (lookup n' s)) t 
 
--- mkRename :: [Name] -> Pat Id -> LamDef -> [Param Id] -> [(Name, Name)]
--- mkRename ns p ldef args 
---       = let imgvars = map idName $ vars p
---             imgvars1 = map idName $ vars args 
---             domvars1 = map idName $ vars (lamArgs ldef)
---             domvars = (map idName $ vars ldef) \\ ns
---         in zip domvars imgvars ++ zip domvars1 imgvars1
+mkRename :: [Name] -> Pat Id -> LamDef -> [Param Id] -> [(Name, Name)]
+mkRename ns p ldef args 
+      = let imgvars = map idName $ vars p
+            imgvars1 = map idName $ vars args 
+            domvars1 = map idName $ vars (lamArgs ldef)
+            domvars = (map idName $ vars ldef) \\ ns
+        in zip domvars imgvars ++ zip domvars1 imgvars1
 --  
 -- create data types for each lambda abstraction parameter 
 -- of a high-order function. 
