@@ -23,14 +23,20 @@ pattern YulAlloc name = YLet [name] Nothing
 pattern YAssign1 :: Name -> YulExp -> YulStmt
 pattern YAssign1 name expr = YAssign [name] expr
 
+type YulCases = [YulCase]
+type YulCase = (YLiteral, YulBlock)
+type YulDefault = Maybe YulBlock
+type YulBlock = [YulStmt]
+
+
 data YulStmt
-  = YBlock [YulStmt]
+  = YBlock YulBlock
   | YFun Name [YArg] YReturns [YulStmt]
   | YLet [Name] (Maybe YulExp)
   | YAssign [Name] YulExp
-  | YIf YulExp [YulStmt]
-  | YSwitch YulExp [(YLiteral, [YulStmt])] (Maybe [YulStmt])
-  | YFor [YulStmt] YulExp [YulStmt] [YulStmt]
+  | YIf YulExp YulBlock
+  | YSwitch YulExp YulCases YulDefault
+  | YFor YulBlock YulExp YulBlock YulBlock
   | YBreak
   | YContinue
   | YLeave
