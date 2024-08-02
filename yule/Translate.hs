@@ -43,7 +43,7 @@ genExpr (ECall name args) = do
     funInfo <- lookupFun name
     (resultCode, resultLoc) <- coreAlloc (fun_result funInfo)
     let callExpr = YulCall name yulArgs
-    let callCode = [YulAssign (flattenLhs resultLoc) callExpr]
+    let callCode = [YAssign (flattenLhs resultLoc) callExpr]
     pure (argsCode++resultCode++callCode, resultLoc)
 genExpr e = error ("genExpr: not implemented for "++show e)
 
@@ -66,9 +66,9 @@ flattenLhs LocUndefined = []
 flattenLhs l = error ("flattenLhs: not implemented for "++show l)
 
 genStmtWithComment :: Stmt -> TM [YulStmt]
-genStmtWithComment (SComment c) = pure [YulComment c]
+genStmtWithComment (SComment c) = pure [YComment c]
 genStmtWithComment s = do
-    let comment = YulComment (show s)
+    let comment = YComment (show s)
     body <- genStmt s
     pure (comment : body)
 
@@ -89,7 +89,7 @@ genStmt (SMatch e alts) = do
     case loc of
         LocSum loctag l r -> do
             yulAlts <- genAlts l r alts
-            pure (stmts ++ [YulSwitch (yultag loctag) yulAlts Nothing]) where
+            pure (stmts ++ [YSwitch (yultag loctag) yulAlts Nothing]) where
                 yultag (LocStack i) = YulIdentifier (stkLoc i)
                 yultag (LocBool b) = yulBool b
                 yultag (LocWord n) = yulInt n
@@ -100,7 +100,7 @@ genStmt (SFunction name args ret stmts) = withLocalEnv do
     yulArgs <- placeArgs args
     yulResult <- place "_result" ret  -- TODO: special handling of unit
     yulBody <- genStmts stmts
-    return [YulFun (fromString name) yulArgs (YReturns yulResult) yulBody]
+    return [YFun (fromString name) yulArgs (YReturns yulResult) yulBody]
     where
         placeArgs :: [Arg] -> TM [Name]
         placeArgs as = concat <$> mapM placeArg as
@@ -113,8 +113,8 @@ genStmt (SFunction name args ret stmts) = withLocalEnv do
             return (flattenLhs loc)
 
 genStmt (SRevert s) = pure
-  [ YulExpression $ YulCall "mstore" [yulInt 0, YulLiteral (YulString s)]
-  , YulExpression $ YulCall "revert" [yulInt 0, yulInt (length s)]
+  [ YExp $ YulCall "mstore" [yulInt 0, YulLiteral (YulString s)]
+  , YExp $ YulCall "revert" [yulInt 0, yulInt (length s)]
   ]
 
 genStmt e = error $ "genStmt unimplemented for: " ++ show e
@@ -203,17 +203,17 @@ loadLoc loc = error ("cannot loadLoc "++show loc)
 
 -- copyLocs l r copies the value of r to l
 copyLocs :: HasCallStack => Location -> Location -> [YulStmt]
-copyLocs (LocStack i) r@(LocWord _) = [YulAssign [stkLoc i] (loadLoc r)]
-copyLocs (LocStack i) r@(LocBool _) = [YulAssign [stkLoc i] (loadLoc r)]
-copyLocs (LocStack i) r@(LocStack _) = [YulAssign [stkLoc i] (loadLoc r)]
-copyLocs (LocStack _) LocUndefined = [YulComment "impossible"]
+copyLocs (LocStack i) r@(LocWord _) = [YAssign [stkLoc i] (loadLoc r)]
+copyLocs (LocStack i) r@(LocBool _) = [YAssign [stkLoc i] (loadLoc r)]
+copyLocs (LocStack i) r@(LocStack _) = [YAssign [stkLoc i] (loadLoc r)]
+copyLocs (LocStack _) LocUndefined = [YComment "impossible"]
 copyLocs (LocPair l1 l2) (LocPair r1 r2) = copyLocs l1 r1 ++ copyLocs l2 r2
 copyLocs (LocSum ltag l1 l2) (LocSum rtag r1 r2) =  copyLocs ltag rtag ++ (copySum rtag) where
     copySum (LocBool b) = case b of
         False -> copyLocs l1 r1   -- explicit inl
         True -> copyLocs l2 r2    -- explicit inr
 
-    copySum (LocStack i) = [YulSwitch (YulIdentifier (stkLoc i))
+    copySum (LocStack i) = [YSwitch (YulIdentifier (stkLoc i))
                 [ (YulNumber 0, copyLocs l1 r1)
                 , (YulNumber 1, copyLocs l2 r2)
                 ]
@@ -240,7 +240,7 @@ translateStmts stmts = do
     let stmts' = if hasMain then stmts else addMain stmts
     payload <- genStmts stmts'
     let resultExp = YulCall "main" []
-    let epilog = [YulAssign1 "_wrapresult" resultExp]
+    let epilog = [YAssign1 "_wrapresult" resultExp]
     return $ Yul ( payload ++ epilog )
 
 

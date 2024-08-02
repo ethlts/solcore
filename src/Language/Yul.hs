@@ -17,23 +17,23 @@ pattern YNoReturn = Nothing
 pattern YReturns :: a -> Maybe a
 pattern YReturns a = Just a
 pattern YulAlloc :: Name -> YulStmt
-pattern YulAlloc name = YulLet [name] Nothing
-pattern YulAssign1 :: Name -> YulExpression -> YulStmt
-pattern YulAssign1 name expr = YulAssign [name] expr
+pattern YulAlloc name = YLet [name] Nothing
+pattern YAssign1 :: Name -> YulExpression -> YulStmt
+pattern YAssign1 name expr = YAssign [name] expr
 
 data YulStmt
-  = YulBlock [YulStmt]
-  | YulFun Name [YArg] YReturns [YulStmt]
-  | YulLet [Name] (Maybe YulExpression)
-  | YulAssign [Name] YulExpression
-  | YulIf YulExpression [YulStmt]
-  | YulSwitch YulExpression [(YulLiteral, [YulStmt])] (Maybe [YulStmt])
-  | YulForLoop [YulStmt] YulExpression [YulStmt] [YulStmt]
-  | YulBreak
-  | YulContinue
-  | YulLeave
-  | YulComment String
-  | YulExpression YulExpression
+  = YBlock [YulStmt]
+  | YFun Name [YArg] YReturns [YulStmt]
+  | YLet [Name] (Maybe YulExpression)
+  | YAssign [Name] YulExpression
+  | YIf YulExpression [YulStmt]
+  | YSwitch YulExpression [(YulLiteral, [YulStmt])] (Maybe [YulStmt])
+  | YFor [YulStmt] YulExpression [YulStmt] [YulStmt]
+  | YBreak
+  | YContinue
+  | YLeave
+  | YComment String
+  | YExp YulExpression
 
 data YulExpression
   = YulCall String [YulExpression]
@@ -57,11 +57,11 @@ instance Pretty Yul where
   ppr (Yul stmts) = vcat (map ppr stmts)
 
 instance Pretty YulStmt where
-  ppr (YulBlock stmts) =
+  ppr (YBlock stmts) =
     lbrace
       $$ nest 4 (vcat (map ppr stmts))
       $$ rbrace
-  ppr (YulFun name args rets stmts) =
+  ppr (YFun name args rets stmts) =
     text "function"
       <+> ppr name
       <+> prettyargs
@@ -73,25 +73,25 @@ instance Pretty YulStmt where
         prettyargs = parens (commaSepList args)
         prettyrets Nothing = empty
         prettyrets (Just rs) = text "->" <+> commaSepList rs
-  ppr (YulLet vars expr) =
+  ppr (YLet vars expr) =
     text "let" <+> commaSepList vars
                <+> maybe empty (\e -> text ":=" <+> ppr e) expr
-  ppr (YulAssign vars expr) = commaSepList vars <+> text ":=" <+> ppr expr
-  ppr (YulIf cond stmts) = text "if" <+> parens (ppr cond) <+> ppr (YulBlock stmts)
-  ppr (YulSwitch expr cases def) =
+  ppr (YAssign vars expr) = commaSepList vars <+> text ":=" <+> ppr expr
+  ppr (YIf cond stmts) = text "if" <+> parens (ppr cond) <+> ppr (YBlock stmts)
+  ppr (YSwitch expr cases def) =
     text "switch"
       <+> ppr expr
-      $$ nest 4 (vcat (map (\(lit, stmts) -> text "case" <+> ppr lit <+> ppr (YulBlock stmts)) cases))
-      $$ maybe empty (\stmts -> text "default" <+> ppr (YulBlock stmts)) def
-  ppr (YulForLoop pre cond post stmts) =
+      $$ nest 4 (vcat (map (\(lit, stmts) -> text "case" <+> ppr lit <+> ppr (YBlock stmts)) cases))
+      $$ maybe empty (\stmts -> text "default" <+> ppr (YBlock stmts)) def
+  ppr (YFor pre cond post stmts) =
     text "for" <+> braces (hsep  (map ppr pre))
                <+> ppr cond
-               <+> hsep (map ppr post) <+> ppr (YulBlock stmts)
-  ppr YulBreak = text "break"
-  ppr YulContinue = text "continue"
-  ppr YulLeave = text "leave"
-  ppr (YulComment c) = text "/*" <+> text c <+> text "*/"
-  ppr (YulExpression e) = ppr e
+               <+> hsep (map ppr post) <+> ppr (YBlock stmts)
+  ppr YBreak = text "break"
+  ppr YContinue = text "continue"
+  ppr YLeave = text "leave"
+  ppr (YComment c) = text "/*" <+> text c <+> text "*/"
+  ppr (YExp e) = ppr e
 
 instance Pretty YulExpression where
   ppr (YulCall name args) = text name >< parens (hsep (punctuate comma (map ppr args)))

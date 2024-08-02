@@ -67,16 +67,16 @@ yulLiteral = choice
 
 yulStmt :: Parser YulStmt
 yulStmt = choice
-    [ YulBlock <$> yulBlock
+    [ YBlock <$> yulBlock
     , yulFun
-    , YulLet <$> (pKeyword "let" *> commaSep pName) <*> optional (symbol ":=" *> yulExpression)
-    , YulIf <$> (pKeyword "if" *> yulExpression) <*> yulBlock
-    , YulSwitch <$>
+    , YLet <$> (pKeyword "let" *> commaSep pName) <*> optional (symbol ":=" *> yulExpression)
+    , YIf <$> (pKeyword "if" *> yulExpression) <*> yulBlock
+    , YSwitch <$>
         (pKeyword "switch" *> yulExpression) <*>
         many yulCase <*>
         optional (pKeyword "default" *> yulBlock)
-    , try (YulAssign <$> commaSep pName <*> (symbol ":=" *> yulExpression))
-    , YulExpression <$> yulExpression
+    , try (YAssign <$> commaSep pName <*> (symbol ":=" *> yulExpression))
+    , YExp <$> yulExpression
     ]
 
 yulBlock :: Parser [YulStmt]
@@ -95,7 +95,7 @@ yulFun = do
     name <- pName
     args <- parens (commaSep pName)
     rets <- optional (symbol "->" *> commaSep pName)
-    YulFun name args rets <$> yulBlock
+    YFun name args rets <$> yulBlock
 
 yulProgram :: Parser Yul
 yulProgram = sc *> (Yul <$> many yulStmt) <* eof
