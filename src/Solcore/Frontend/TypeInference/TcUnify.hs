@@ -6,7 +6,8 @@ import Data.List
 
 import Solcore.Frontend.Syntax
 import Solcore.Frontend.TypeInference.TcSubst
-import Solcore.Frontend.Pretty.SolcorePretty 
+import Common.Pretty
+import Solcore.Frontend.Pretty.SolcorePretty  hiding((<>))
 
 
 -- standard unification machinery 

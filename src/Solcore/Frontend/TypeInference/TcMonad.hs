@@ -8,7 +8,7 @@ import Data.List
 import Data.Map (Map)
 import qualified Data.Map as Map
 
-import Solcore.Frontend.Pretty.SolcorePretty
+import Solcore.Frontend.Pretty.SolcorePretty hiding((<>))
 import Solcore.Frontend.Syntax
 import Solcore.Frontend.TypeInference.NameSupply
 import Solcore.Frontend.TypeInference.TcEnv

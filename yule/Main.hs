@@ -46,7 +46,7 @@ main = do
     let core = parseCore src
     when (verbose options) $ do
         putStrLn "/* Core:"
-        putStrLn (render (nest 2 (pretty core)))
+        putStrLn (render (nest 2 (ppr core)))
         putStrLn "*/"
     generatedYul <- runTM (translateCore core)
     let fooFun = wrapInSolFunction "wrapper" generatedYul

@@ -1,4 +1,4 @@
-module Solcore.Frontend.Pretty.SolcorePretty where 
+module Solcore.Frontend.Pretty.SolcorePretty(module Common.Pretty, pretty) where
 
 import Data.List
 
@@ -11,15 +11,16 @@ import Solcore.Frontend.Syntax.Ty
 import Solcore.Frontend.TypeInference.NameSupply
 import Solcore.Frontend.TypeInference.TcSubst 
 
-import Text.PrettyPrint.HughesPJ
+import Common.Pretty
+
+-- For compatibility
+(<>) :: Doc -> Doc -> Doc
+(<>) = (><)
 
 -- top level pretty printer function 
 
 pretty :: Pretty a => a -> String 
 pretty = render . ppr
-
-class Pretty a where 
-  ppr :: a -> Doc  
 
 instance Pretty a => Pretty (Qual a) where 
   ppr (ps :=> t) 

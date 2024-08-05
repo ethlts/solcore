@@ -15,4 +15,4 @@ infixl 6 ><
 (><) = (PP.<>)
 
 class Pretty a where
-  pretty :: a -> Doc
+  ppr :: a -> Doc
