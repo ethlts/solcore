@@ -2,7 +2,7 @@ module Language.Core where
 import Common.Pretty
 import Language.Yul
 
--- type Name = String
+type Name = String
 
 data Type
     = TWord
@@ -33,7 +33,7 @@ data Stmt
     = SAssign Expr Expr
     | SAlloc Name Type
     | SExpr Expr
-    | SAssembly [YulStatement]
+    | SAssembly [YulStmt]
     | SReturn Expr
     | SComment String
     | SBlock [Stmt]
@@ -47,8 +47,14 @@ instance Show Stmt where show = render . ppr
 
 data Alt = Alt Name Stmt
 
+data Contract = Contract { ccName :: Name, ccStmts ::  [Stmt] }
+
 newtype Core = Core [Stmt]
 instance Show Core where show = render . ppr
+instance Show Contract where show = render . ppr
+
+instance Pretty Contract where
+    ppr (Contract n stmts) = text "contract" <+> text n <+> lbrace $$ nest 4 (vcat (map ppr stmts)) $$ rbrace
 
 instance Pretty Type where
     ppr TWord = text "word"

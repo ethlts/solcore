@@ -2,6 +2,8 @@ module Common.Pretty
 ( Pretty(..)
 , module Text.PrettyPrint
 , (><)  -- to avoid hiding Prelude (<>) 
+, dotSep
+, commaSep
 ) where
 import Text.PrettyPrint hiding((<>))
 import Text.PrettyPrint qualified as PP
@@ -16,3 +18,11 @@ infixl 6 ><
 
 class Pretty a where
   ppr :: a -> Doc
+
+dotSep :: [Doc] -> Doc
+dotSep = hcat . punctuate dot
+         where
+          dot = text "."
+
+commaSep :: [Doc] -> Doc
+commaSep = hsep . punctuate comma

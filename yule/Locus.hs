@@ -1,5 +1,5 @@
 module Locus where
-
+import Data.String
 {-
 Location tree with addresses a:
 - location for Int is a single cell
@@ -18,5 +18,5 @@ data LocTree a
 
 type Location = LocTree Int
 
-stkLoc :: Int -> String
-stkLoc i = "_v" ++ show i
+stkLoc :: IsString name => Int -> name
+stkLoc i = fromString("_v" ++ show i)

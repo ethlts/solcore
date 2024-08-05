@@ -1,113 +1,131 @@
+{-# LANGUAGE InstanceSigs #-}
 module Language.Yul where
+import Data.Generics (Data, Typeable)
 
 import Common.Pretty
+import Solcore.Frontend.Syntax.Name
 
-newtype Yul = Yul { yulStmts :: [YulStatement] }
+import Solcore.Frontend.Pretty.Name
+
+
+newtype Yul = Yul { yulStmts :: [YulStmt] }
 instance Show Yul where show = render . ppr
-instance Show YulStatement where show = render . ppr
-instance Show YulExpression where show = render . ppr
-instance Show YulLiteral where show = render . ppr
+instance Show YulStmt where show = render . ppr
+instance Show YulExp where show = render . ppr
+instance Show YLiteral where show = render . ppr
 
-type Name = String
 type YArg = Name
 type YReturns = Maybe [Name]
 pattern YNoReturn :: Maybe a
 pattern YNoReturn = Nothing
 pattern YReturns :: a -> Maybe a
 pattern YReturns a = Just a
-pattern YulAlloc :: Name -> YulStatement
-pattern YulAlloc name = YulLet [name] Nothing
-pattern YulAssign1 :: Name -> YulExpression -> YulStatement
-pattern YulAssign1 name expr = YulAssign [name] expr
+pattern YulAlloc :: Name -> YulStmt
+pattern YulAlloc name = YLet [name] Nothing
+pattern YAssign1 :: Name -> YulExp -> YulStmt
+pattern YAssign1 name expr = YAssign [name] expr
 
-data YulStatement
-  = YulBlock [YulStatement]
-  | YulFun String [YArg] YReturns [YulStatement]
-  | YulLet [String] (Maybe YulExpression)
-  | YulAssign [String] YulExpression
-  | YulIf YulExpression [YulStatement]
-  | YulSwitch YulExpression [(YulLiteral, [YulStatement])] (Maybe [YulStatement])
-  | YulForLoop [YulStatement] YulExpression [YulStatement] [YulStatement]
-  | YulBreak
-  | YulContinue
-  | YulLeave
-  | YulComment String
-  | YulExpression YulExpression
+type YulCases = [YulCase]
+type YulCase = (YLiteral, YulBlock)
+type YulDefault = Maybe YulBlock
+type YulBlock = [YulStmt]
 
-data YulExpression
-  = YulCall String [YulExpression]
-  | YulIdentifier String
-  | YulLiteral YulLiteral
 
-data YulLiteral
+data YulStmt
+  = YBlock YulBlock
+  | YFun Name [YArg] YReturns [YulStmt]
+  | YLet [Name] (Maybe YulExp)
+  | YAssign [Name] YulExp
+  | YIf YulExp YulBlock
+  | YSwitch YulExp YulCases YulDefault
+  | YFor YulBlock YulExp YulBlock YulBlock
+  | YBreak
+  | YContinue
+  | YLeave
+  | YComment String
+  | YExp YulExp
+  deriving (Eq, Ord, Data, Typeable)
+
+data YulExp
+  = YCall Name [YulExp]
+  | YIdent Name
+  | YLit YLiteral
+   deriving (Eq, Ord, Data, Typeable)
+
+data YLiteral
   = YulNumber Integer
   | YulString String
   | YulTrue
   | YulFalse
+  deriving (Eq, Ord, Data, Typeable)
 
-yulInt :: Integral i => i -> YulExpression
-yulInt = YulLiteral . YulNumber . fromIntegral
+yulInt :: Integral i => i -> YulExp
+yulInt = YLit . YulNumber . fromIntegral
 
-yulBool :: Bool -> YulExpression
-yulBool True = YulLiteral YulTrue
-yulBool False = YulLiteral YulFalse
+yulBool :: Bool -> YulExp
+yulBool True = YLit YulTrue
+yulBool False = YLit YulFalse
 
 instance Pretty Yul where
   ppr (Yul stmts) = vcat (map ppr stmts)
 
-instance Pretty YulStatement where
-  ppr (YulBlock stmts) =
+instance Pretty YulStmt where
+  ppr (YBlock stmts) =
     lbrace
       $$ nest 4 (vcat (map ppr stmts))
       $$ rbrace
-  ppr (YulFun name args rets stmts) =
+  ppr (YFun name args rets stmts) =
     text "function"
-      <+> text name
+      <+> ppr name
       <+> prettyargs
       <+> prettyrets rets
       <+> lbrace
       $$ nest 4 (vcat (map ppr stmts))
       $$ rbrace
     where
-        prettyargs = parens (hsep (punctuate comma (map text args)))
+        prettyargs = parens (commaSepList args)
         prettyrets Nothing = empty
-        prettyrets (Just rs) = text "->" <+> (hsep (punctuate comma (map text rs)))
-  ppr (YulLet vars expr) =
-    text "let" <+> hsep (punctuate comma (map text vars))
+        prettyrets (Just rs) = text "->" <+> commaSepList rs
+  ppr (YLet vars expr) =
+    text "let" <+> commaSepList vars
                <+> maybe empty (\e -> text ":=" <+> ppr e) expr
-  ppr (YulAssign vars expr) = hsep (punctuate comma (map text vars)) <+> text ":=" <+> ppr expr
-  ppr (YulIf cond stmts) = text "if" <+> parens (ppr cond) <+> ppr (YulBlock stmts)
-  ppr (YulSwitch expr cases def) =
+  ppr (YAssign vars expr) = commaSepList vars <+> text ":=" <+> ppr expr
+  ppr (YIf cond stmts) = text "if" <+> parens (ppr cond) <+> ppr (YBlock stmts)
+  ppr (YSwitch expr cases def) =
     text "switch"
-      <+> (ppr expr)
-      $$ nest 4 (vcat (map (\(lit, stmts) -> text "case" <+> ppr lit <+> ppr (YulBlock stmts)) cases))
-      $$ maybe empty (\stmts -> text "default" <+> ppr (YulBlock stmts)) def
-  ppr (YulForLoop pre cond post stmts) =
+      <+> ppr expr
+      $$ nest 4 (vcat (map (\(lit, stmts) -> text "case" <+> ppr lit <+> ppr (YBlock stmts)) cases))
+      $$ maybe empty (\stmts -> text "default" <+> ppr (YBlock stmts)) def
+  ppr (YFor pre cond post stmts) =
     text "for" <+> braces (hsep  (map ppr pre))
                <+> ppr cond
-               <+> hsep (map ppr post) <+> ppr (YulBlock stmts)
-  ppr YulBreak = text "break"
-  ppr YulContinue = text "continue"
-  ppr YulLeave = text "leave"
-  ppr (YulComment c) = text "/*" <+> text c <+> text "*/"
-  ppr (YulExpression e) = ppr e
+               <+> hsep (map ppr post) <+> ppr (YBlock stmts)
+  ppr YBreak = text "break"
+  ppr YContinue = text "continue"
+  ppr YLeave = text "leave"
+  ppr (YComment c) = text "/*" <+> text c <+> text "*/"
+  ppr (YExp e) = ppr e
 
-instance Pretty YulExpression where
-  ppr (YulCall name args) = text name >< parens (hsep (punctuate comma (map ppr args)))
-  ppr (YulIdentifier name) = text name
-  ppr (YulLiteral lit) = ppr lit
+instance Pretty YulExp where
+  ppr :: YulExp -> Doc
+  ppr (YCall name args) = ppr name >< parens (hsep (punctuate comma (map ppr args)))
+  ppr (YIdent name) = ppr name
+  ppr (YLit lit) = ppr lit
 
-instance Pretty YulLiteral where
+instance Pretty YLiteral where
   ppr (YulNumber n) = integer n
   ppr (YulString s) = doubleQuotes (text s)
   ppr YulTrue = text "true"
   ppr YulFalse = text "false"
 
+commaSepList :: Pretty a => [a] -> Doc
+commaSepList = hsep . punctuate comma . map ppr
+
 {- | wrap a Yul chunk in a Solidity function with the given name
    assumes result is in a variable named "_result"
 -}
 wrapInSolFunction :: Pretty a => Name -> a -> Doc
-wrapInSolFunction name yul = text "function" <+> text name <+> prettyargs <+> text " public pure returns (uint256 _wrapresult)" <+> lbrace
+wrapInSolFunction name yul = text "function" <+> ppr name <+> prettyargs <+> text " public pure returns (uint256 _wrapresult)" <+> lbrace
   $$ nest 2 assembly
   $$ rbrace
   where
@@ -121,12 +139,12 @@ wrapInContract name entry body = empty
   $$ text "// SPDX-License-Identifier: UNLICENSED"
   $$ text "pragma solidity ^0.8.23;"
   $$ text "import {console,Script} from \"lib/stdlib.sol\";"
-  $$ text "contract" <+> text name <+> text "is Script"<+> lbrace
+  $$ text "contract" <+> ppr name <+> text "is Script"<+> lbrace
   $$ nest 2 run
   $$ nest 2 body
   $$ rbrace
 
   where
     run = text "function run() public view" <+> lbrace
-      $$ nest 2 (text "console.log(\"RESULT --> \","<+> text entry >< text ");")
+      $$ nest 2 (text "console.log(\"RESULT --> \","<+> ppr entry >< text ");")
       $$ rbrace $$ text ""

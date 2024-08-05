@@ -7,7 +7,7 @@ import Data.Void
 import Common.LightYear
 import Text.Megaparsec.Char.Lexer qualified as L
 import Language.Yul
-
+import Solcore.Frontend.Syntax.Name(Name(..))
 
 parseYul :: String -> Yul
 parseYul = runMyParser "yul" yulProgram
@@ -32,6 +32,9 @@ identChar = alphaNumChar <|> char '_' <|> char '$'
 identifier :: Parser String
 identifier = lexeme ((:) <$> startIdentChar <*> many identChar)
 
+pName :: Parser Name
+pName = Name <$> identifier
+
 integer :: Parser Integer
 integer = lexeme L.decimal
 
@@ -47,14 +50,14 @@ commaSep p = p `sepBy` symbol ","
 pKeyword :: String -> Parser String
 pKeyword w = lexeme (string w <* notFollowedBy identChar)
 
-yulExpression :: Parser YulExpression
+yulExpression :: Parser YulExp
 yulExpression = choice
-    [ YulLiteral <$> yulLiteral
-    , try (YulCall <$> identifier <*> parens (commaSep yulExpression))
-    , YulIdentifier <$> identifier
+    [ YLit <$> yulLiteral
+    , try (YCall <$> pName<*> parens (commaSep yulExpression))
+    , YIdent <$> pName
     ]
 
-yulLiteral :: Parser YulLiteral
+yulLiteral :: Parser YLiteral
 yulLiteral = choice
     [ YulNumber <$> integer
     , YulString <$> stringLiteral
@@ -62,38 +65,37 @@ yulLiteral = choice
     , YulFalse <$ pKeyword "false"
     ]
 
-yulStatement :: Parser YulStatement
-yulStatement = choice
-    [ YulBlock <$> yulBlock
+yulStmt :: Parser YulStmt
+yulStmt = choice
+    [ YBlock <$> yulBlock
     , yulFun
-    , YulLet <$> (pKeyword "let" *> commaSep identifier) <*> optional (symbol ":=" *> yulExpression)
-    , YulIf <$> (pKeyword "if" *> yulExpression) <*> yulBlock
-    , YulSwitch <$>
+    , YLet <$> (pKeyword "let" *> commaSep pName) <*> optional (symbol ":=" *> yulExpression)
+    , YIf <$> (pKeyword "if" *> yulExpression) <*> yulBlock
+    , YSwitch <$>
         (pKeyword "switch" *> yulExpression) <*>
         many yulCase <*>
         optional (pKeyword "default" *> yulBlock)
-    , try (YulAssign <$> commaSep identifier <*> (symbol ":=" *> yulExpression))
-    , YulExpression <$> yulExpression
+    , try (YAssign <$> commaSep pName <*> (symbol ":=" *> yulExpression))
+    , YExp <$> yulExpression
     ]
 
-yulBlock :: Parser [YulStatement]
-yulBlock = between (symbol "{") (symbol "}") (many yulStatement)
+yulBlock :: Parser [YulStmt]
+yulBlock = between (symbol "{") (symbol "}") (many yulStmt)
 
-yulCase :: Parser (YulLiteral, [YulStatement])
+yulCase :: Parser (YLiteral, [YulStmt])
 yulCase = do
     _ <- pKeyword "case"
     lit <- yulLiteral
     stmts <- yulBlock
     return (lit, stmts)
 
-yulFun :: Parser YulStatement
+yulFun :: Parser YulStmt
 yulFun = do
     _ <- symbol "function"
-    name <- identifier
-    args <- parens (commaSep identifier)
-    rets <- optional (symbol "->" *> (commaSep identifier))
-    stmts <- yulBlock
-    return (YulFun name args rets stmts)
+    name <- pName
+    args <- parens (commaSep pName)
+    rets <- optional (symbol "->" *> commaSep pName)
+    YFun name args rets <$> yulBlock
 
 yulProgram :: Parser Yul
-yulProgram = sc *> (Yul <$> many yulStatement) <* eof
+yulProgram = sc *> (Yul <$> many yulStmt) <* eof

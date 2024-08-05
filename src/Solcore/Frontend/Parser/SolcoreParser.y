@@ -7,6 +7,7 @@ import Solcore.Frontend.Syntax.Name
 import Solcore.Frontend.Syntax.Stmt
 import Solcore.Frontend.Syntax.Ty
 import Solcore.Primitives.Primitives
+import Language.Yul
 }
 
 
@@ -359,8 +360,8 @@ YulCases :: {YulCases}
 YulCases : YulCase YulCases                        {$1 : $2}
          | {- empty -}                             {[]}
 
-YulCase :: {(Literal, YulBlock)}
-YulCase : 'case' Literal YulBlock                  {($2, $3)}
+YulCase :: {(YLiteral, YulBlock)}
+YulCase : 'case' YulLiteral YulBlock                  {($2, $3)}
 
 YulDefault :: {Maybe YulBlock}
 YulDefault : 'default' YulBlock                    {Just $2}
@@ -370,7 +371,11 @@ YulIf :: {YulStmt}
 YulIf : 'if' YulExp YulBlock                       {YIf $2 $3}
 
 YulVarDecl :: {YulStmt}    
-YulVarDecl : 'let' IdentifierList ':=' YulExp      {YLet $2 $4}
+YulVarDecl : 'let' IdentifierList YulOptAss     {YLet $2 $3}
+
+YulOptAss :: {Maybe YulExp}
+YulOptAss : ':=' YulExp                            {Just $2}
+          | {- empty -}                            {Nothing}
 
 YulAssignment :: {YulStmt}
 YulAssignment : IdentifierList ':=' YulExp         {YAssign $1 $3}
@@ -380,7 +385,7 @@ IdentifierList : {- empty -}                       {[]}
                | Name ',' IdentifierList           {$1 : $3}
 
 YulExp :: {YulExp}
-YulExp : Literal                                   {YLit $1}
+YulExp : YulLiteral                                   {YLit $1}
        | Name                                      {YIdent $1}
        | Name YulFunArgs                           {YCall $1 $2}  
 
@@ -392,7 +397,9 @@ YulExpCommaList : YulExp                           {[$1]}
               | {- empty -}                        {[]}
               | YulExp ',' YulExpCommaList         {$1 : $3}
 
-
+YulLiteral :: { YLiteral }
+YulLiteral : number                                {YulNumber $ toInteger $1}
+        | stringlit                                {YulString $1}
 
 {
 parseError :: Token -> Alex a
