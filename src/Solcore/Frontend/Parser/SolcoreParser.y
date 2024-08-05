@@ -335,7 +335,7 @@ YulBlock :: {YulBlock}
 YulBlock : '{' YulStmts '}'                        {$2}
 
 YulStmts :: {[YulStmt]}
-YulStmts : YulStmt ';' YulStmts                    {$1 : $3}
+YulStmts : YulStmt OptSemi YulStmts                {$1 : $3}
          | {- empty -}                             {[]}
 
 YulStmt :: {YulStmt}
@@ -381,8 +381,10 @@ YulAssignment :: {YulStmt}
 YulAssignment : IdentifierList ':=' YulExp         {YAssign $1 $3}
 
 IdentifierList :: {[Name]}
-IdentifierList : {- empty -}                       {[]}
+IdentifierList : Name                              {[$1]}
                | Name ',' IdentifierList           {$1 : $3}
+
+
 
 YulExp :: {YulExp}
 YulExp : YulLiteral                                   {YLit $1}
@@ -400,6 +402,10 @@ YulExpCommaList : YulExp                           {[$1]}
 YulLiteral :: { YLiteral }
 YulLiteral : number                                {YulNumber $ toInteger $1}
         | stringlit                                {YulString $1}
+
+OptSemi :: { () }
+OptSemi : ';'                                      { () }
+        | {- empty -}                              { () }
 
 {
 parseError :: Token -> Alex a
