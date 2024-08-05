@@ -88,6 +88,8 @@ executable sol-core
       app
   build-depends: sol-core
   build-tool-depends: alex:alex, happy:happy
+  program-default-options
+--    happy-options: --debug -gcai
 
 executable yule
     main-is:          Main.hs
