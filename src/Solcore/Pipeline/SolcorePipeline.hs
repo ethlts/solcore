@@ -34,7 +34,7 @@ pipeline = do
         when verbose (mapM_ putStrLn (reverse $ logs env))
         r4 <- matchCompiler c'
         withErr r4 $ \ res -> do
-          when verbose do
+          when False do
             putStrLn "Desugared contract:"
             putStrLn (pretty res)
           defunctionalize env res

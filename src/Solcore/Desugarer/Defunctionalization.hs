@@ -5,6 +5,8 @@ import Control.Monad.Except
 import Control.Monad.Identity
 import Control.Monad.State
 
+import Data.Generics hiding (mkConstr, Constr)
+import Data.Generics.Schemes
 import Data.List
 import Data.Map (Map)
 import qualified Data.Map as Map 
@@ -20,8 +22,16 @@ import Solcore.Frontend.TypeInference.TcSubst
 -- top level function 
 
 defunctionalize :: TcEnv -> CompUnit Id -> IO ()
-defunctionalize env cunit  
-  = runDefunM  (defunM cunit) env >> return () 
+defunctionalize env cunit@(CompUnit _ ds)  
+  = do 
+      runDefunM (defunM cunit) pool fs (Map.keys (ctx env))
+      return () 
+    where 
+      pool = nameSupply env
+      fs = map go ds' 
+      go f@(FunDef sig _) = (sigName sig, f)
+      ds' = concatMap (listify p) ds 
+      p (FunDef _ _) = True 
 
 -- definition of the defunctionalization monad 
 
@@ -30,34 +40,50 @@ type DefunM a = StateT DEnv (ExceptT String IO) a
 data DEnv 
   = DEnv {
       names :: NameSupply
-    , tyCtx :: Map Name Scheme -- typing context 
+    , fundefs :: [(Name, FunDef Id)] -- function definitions 
+    , defs :: [Name] 
     }
 
-askType :: Name -> DefunM Ty 
-askType n@(Name s) 
+askFunDef :: Name -> DefunM (FunDef Id)
+askFunDef n@(Name s) 
   = do 
-      r <- gets (Map.lookup n . tyCtx)
+      r <- gets (lookup n . fundefs)
       case r of 
-        Just (Forall _ (_ :=> t)) -> pure t
+        Just sig -> pure sig
         Nothing -> throwError $ "Impossible! Undefined name:" ++ s
              
 
-runDefunM :: DefunM a -> TcEnv -> IO (Either String (a, DEnv))
-runDefunM m env 
-  = runExceptT (runStateT m (DEnv (nameSupply env) (ctx env)))
+askSig :: Name -> DefunM (Signature Id)
+askSig n = funSignature <$> askFunDef n
+
+freshName :: DefunM Name 
+freshName 
+  = do  
+      ns <- gets names
+      let (n, ns') = newName ns 
+      modify (\ denv -> denv {names = ns'})
+      return n
+
+runDefunM :: DefunM a -> 
+             NameSupply -> 
+             [(Name, FunDef Id)] -> 
+             [Name] -> IO (Either String (a, DEnv))
+runDefunM m pool funs defs
+  = runExceptT (runStateT m (DEnv pool funs defs))
 
 -- definition of the algorithm
 
 defunM :: CompUnit Id -> DefunM (CompUnit Id)
 defunM cunit@(CompUnit imps decls)
   = do 
-      ns <- gets (Map.keys . tyCtx)
       let ldefs = collectLam decls
-          mdef = concatMap (\ (n, m) -> map (n,) (Map.toList m)) 
-                           (Map.toList ldefs)
+          step k m ac = (k, Map.toList m) : ac 
+          mdef = Map.foldrWithKey step [] ldefs
       dts <- mapM createDataTy mdef  
       liftIO $ mapM (putStrLn . pretty) dts
-      -- dap <- zipWithM createApply mdef dts
+      -- FIXME Need to create an unique apply for function!
+      dap <- zipWithM createApply mdef dts
+      liftIO $ mapM (putStrLn . pretty) dap
       return cunit
 
 -- definition of a type to hold lambda abstractions in code 
@@ -74,45 +100,150 @@ instance Show LamDef where
 
 -- create apply function 
 
-createApply :: (Name, (Int, [LamDef])) -> DataTy -> DefunM (FunDef Id)
-createApply x@(n, (p, ldefs)) dt 
-  = FunDef <$> createApplySignature x dt <*> 
-               createApplyBody (zip ldefs (dataConstrs dt)) 
+createApply :: (Name, [(Int, [LamDef])]) -> DataTy -> DefunM (FunDef Id)
+createApply x@(n, ldefs) dt 
+  = do 
+      (lp, sig) <- createApplySignature x dt
+      let cons = zip (concatMap snd ldefs) (dataConstrs dt)
+      bd <- createApplyBody sig lp cons 
+      pure (FunDef sig bd)
 
-createApplySignature :: (Name, (Int, [LamDef])) -> DataTy -> DefunM (Signature Id)
-createApplySignature (v@(Name n), (p, ldefs)) dt 
+createApplySignature :: (Name, [(Int, [LamDef])]) -> 
+                        DataTy -> 
+                        DefunM (Param Id, Signature Id) 
+createApplySignature (v@(Name n), pdefs) dt 
+  = do 
+      let (pos, ldefs) = unzip pdefs 
+          n' = Name ("apply_" ++ n)
+      -- getting function signature 
+      sig <- askSig v 
+      lts <- mapM (lamParam (sigParams sig)) pos 
+      lp <- mkParam dt
+      let args' = lp : (sigParams sig \\ lts)
+      pure (lp, Signature n' [] args' (sigReturn sig))
+
+lamParam :: [Param Id] -> Int -> DefunM (Param Id) 
+lamParam ts p 
+  = case splitAt (p + 1) ts of 
+      (ts', _) -> 
+        case unsnoc ts' of 
+          Just (_, lt) -> pure lt 
+          Nothing -> throwError "Impossible! lamType!"
+
+mkParam :: DataTy -> DefunM (Param Id)
+mkParam dt 
+  = do 
+      let tc = TyCon (dataName dt) (TyVar <$> dataParams dt)
+      n <- freshName 
+      pure (Typed (Id n tc) tc)
+
+
+createApplyBody :: Signature Id -> 
+                   Param Id -> 
+                   [(LamDef, Constr)] -> DefunM (Body Id)
+createApplyBody sig p@(Typed v t) ldefs 
+  = do 
+      let args = (sigParams sig) \\ [p]
+      eqns <- mapM (mkEquation sig t args) ldefs 
+      pure [Match [Var v] eqns]
+
+mkEquation :: Signature Id -> 
+              Ty ->
+              [Param Id] -> 
+              (LamDef, Constr) -> 
+              DefunM (Equation Id)
+mkEquation sig t args (ldef, c) 
   = do
-      -- getting the function type 
-      (ts,t) <- splitTy <$> askType v
-      -- getting the type of the lambda parameter 
-      let lt = ts !! p      
-      undefined 
+      p <- mkPat t c
+      bd <- mkBody sig p ldef t args  
+      pure ([p], bd)
+
+mkPat :: Ty -> Constr -> DefunM (Pat Id)
+mkPat t (Constr n ts)
+  = do 
+      ps <- mapM mkPVar ts 
+      let tf = funtype ts t 
+      pure (PCon (Id n tf) ps)
     where 
-      n' = Name ("apply_" ++ n)
+      mkPVar t' = do 
+        n' <- freshName 
+        pure (PVar (Id n' t'))
 
-createApplyBody :: [(LamDef, Constr)] -> DefunM (Body Id)
-createApplyBody = undefined 
+mkBody :: Signature Id -> 
+          Pat Id -> 
+          LamDef -> 
+          Ty -> 
+          [Param Id] -> 
+          DefunM (Body Id)
+mkBody sig p ldef t args 
+  = do
+      ns <- gets defs
+      apid <- idFromSignature sig
+      let s = mkRename ns p ldef args
+          bd = renameBody s (lamBody ldef)
+      everywhereM (mkM (changeCall apid p t)) bd
 
+idFromSignature :: Signature Id -> DefunM Id 
+idFromSignature sig 
+  = do 
+      t <- maybe err pure (sigReturn sig)
+      pure $ Id (sigName sig) (funtype ts t)
+    where
+      ts = map tyParam (sigParams sig)
+      err = throwError "Impossible --- idFromSignature"
+      tyParam (Typed (Id _ t) _) = t
+      tyParam (Untyped (Id _ t)) = t
+
+changeCall :: Id -> Pat Id -> Ty -> Exp Id -> DefunM (Exp Id)
+changeCall fid (PCon _ ps) t e@(Call me cid args) 
+  | (idName cid) `elem` (map idName $ vars ps)
+    = do
+        let args' = Var (Id (idName cid) t) : args
+        pure $ Call me fid args'
+  | otherwise = pure e
+changeCall _ _ _ e = pure e
+
+renameBody :: [(Name, Name)] -> Body Id -> Body Id
+renameBody s bd 
+  = everywhere (mkT (applyN s)) bd 
+    where 
+      applyN s (Id n' t) 
+        = Id (maybe n' id (lookup n' s)) t 
+
+mkRename :: [Name] -> Pat Id -> LamDef -> [Param Id] -> [(Name, Name)]
+mkRename ns p ldef args 
+      = let imgvars = map idName $ vars p
+            imgvars1 = map idName $ vars args 
+            domvars1 = map idName $ vars (lamArgs ldef)
+            domvars = (map idName $ vars ldef) \\ ns
+        in zip domvars imgvars ++ zip domvars1 imgvars1
+--  
 -- create data types for each lambda abstraction parameter 
 -- of a high-order function. 
 
-createDataTy :: (Name, (Int, [LamDef])) -> DefunM DataTy 
-createDataTy (Name f, (n, lams)) 
+createDataTy :: (Name, [(Int, [LamDef])]) -> DefunM DataTy 
+createDataTy (Name f, lams) 
   = do 
-      ns <- gets (Map.keys . tyCtx)
-      cs <- zipWithM (mkConstr ns n') lams [0..]
-      let tvs = fv (concatMap constrTy cs)
-      pure $ DataTy (Name n') tvs cs
+      ns <- gets defs
+      cs <- mapM (mkConstrs ns n') lams
+      let
+        cs' = concat cs
+        tvs = fv (concatMap constrTy cs')
+      pure $ DataTy (Name n') tvs cs'
     where 
-      n' = "Lam_" ++ f ++ show n
+      n' = "Lam_" ++ f
  
 
-mkConstr :: [Name] -> String -> LamDef -> Int -> DefunM Constr 
-mkConstr ns s ldef i  
+mkConstrs :: [Name] -> String -> (Int, [LamDef]) -> DefunM [Constr]
+mkConstrs ns s (i,ldefs)  
+  = mapM (mkConstr ns s i) ldefs
+
+mkConstr :: [Name] -> String -> Int -> LamDef -> DefunM Constr 
+mkConstr ns s i ldef 
   = Constr n' <$> mapM (mkConstrParam s tvs (lamTy ldef) . idType) 
-                       (filter valid $ vars ldef)  
-    where
-      valid (Id n _) = n `notElem` ns
+                       (filter valid $ vars ldef)
+    where 
+      valid (Id n _) = n `notElem` ns 
       tvs = fv (lamTy ldef)
       n' = Name (s ++ show i)
 
@@ -137,6 +268,11 @@ class Vars a where
 
 instance Vars a => Vars [a] where 
   vars = foldr (union . vars) []
+
+instance Vars (Pat Id) where 
+  vars (PVar v) = [v]
+  vars (PCon _ ps) = vars ps 
+  vars _ = []
 
 instance Vars (Param Id) where 
   vars (Typed n _) = [n]
@@ -232,8 +368,9 @@ instance CollectLam (Exp Id) where
   collectLam (Con _ es) = collectLam es 
   collectLam (FieldAccess e _) = collectLam e 
   collectLam (Call (Just e) (Id n _) es) 
-    = Map.unionWith (Map.unionWith (union)) (collectLam e) 
-                                         (collectArgs n (zip [0..] es))
+    = Map.unionWith (Map.unionWith (union)) 
+                    (collectLam e) 
+                    (collectArgs n (zip [0..] es))
   collectLam (Call _ (Id n _) es) = collectArgs n (zip [0..] es) 
   collectLam _ = Map.empty 
 
@@ -247,5 +384,4 @@ collectArgs n = foldr step Map.empty
     mkTy args t 
       = funtype (map paramTy args) t 
     paramTy (Typed _ t) = t
-
 
