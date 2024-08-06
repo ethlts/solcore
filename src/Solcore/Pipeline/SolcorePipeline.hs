@@ -35,11 +35,15 @@ pipeline = do
           when verbose do
             putStrLn "Desugared contract:"
             putStrLn (pretty res)
-{-          when False do
-            r5 <- specialiseCompUnit res env
+          r5 <- defunctionalize env res 
+          withErr r5 $ \ res1 -> do 
+            when verbose do 
+              putStrLn "Defunctionalized contract:"
+              putStrLn (pretty res1)
+{-          when verbose do
+            r6 <- specialiseCompUnit r5 env
             putStrLn "Specialised contract:"
-            putStrLn (pretty r5) -}
-          defunctionalize env res 
+            putStrLn (pretty r6) -}
           return ()
 
 withErr :: Either String a -> (a -> IO ()) -> IO ()
