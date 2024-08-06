@@ -64,6 +64,7 @@ instance Pretty Type where
     ppr (TPair t1 t2) = parens (ppr t1 <+> text "*" <+> ppr t2)
     ppr (TSum t1 t2) = parens (ppr t1 <+> text "+" <+> ppr t2)
     ppr (TFun ts t) = parens (hsep (map ppr ts) <+> text "->" <+> ppr t)
+    ppr (TNamed n t) = text n <> braces(ppr t)
 
 instance Pretty Expr where
     ppr (EWord i) = text (show i)

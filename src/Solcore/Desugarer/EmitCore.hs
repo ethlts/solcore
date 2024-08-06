@@ -148,7 +148,7 @@ translateTCon tycon tas = do
     case mti of
         Just (DataTy n tvs cs) -> do
             let subst = Subst $ zip tvs tas
-            buildSumType <$> mapM (translateDCon subst) cs
+            Core.TNamed (show tycon) . buildSumType <$> mapM (translateDCon subst) cs
         Nothing -> errors ["translateTCon: unknown type ", pretty tycon, "\n", show tycon]
   where
       buildSumType [] = errors ["empty sum ", pretty tycon] -- Core.TUnit

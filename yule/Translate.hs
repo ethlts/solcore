@@ -173,6 +173,7 @@ buildLoc (TSum t1 t2) = do
     return (LocSum tag l1 l2)
 
 buildLoc TUnit = pure LocUnit
+buildLoc (TNamed n t) = buildLoc t
 buildLoc t = error ("cannot build location for "++show t)
 
 coreAlloc :: Type -> TM ([YulStmt], Location)

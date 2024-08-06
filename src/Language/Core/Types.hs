@@ -7,4 +7,5 @@ data Type
     | TSum Type Type
     | TFun [Type] Type
     | TUnit
+    | TNamed String Type
     deriving (Show)

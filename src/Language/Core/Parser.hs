@@ -64,6 +64,7 @@ pPrimaryType = choice
     , TBool <$ pKeyword "bool"
     , TUnit <$ pKeyword "unit"
     , parens coreType
+    , TNamed <$> identifier <*> braces coreType
     ]
 
 coreType :: Parser Type
