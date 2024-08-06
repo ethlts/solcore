@@ -22,11 +22,13 @@ import Solcore.Frontend.TypeInference.TcSubst
 
 -- top level function 
 
-defunctionalize :: TcEnv -> CompUnit Id -> IO ()
+defunctionalize :: TcEnv -> CompUnit Id -> IO (Either String (CompUnit Id))
 defunctionalize env cunit@(CompUnit _ ds)  
   = do 
-      runDefunM (defunM cunit) pool fs (Map.keys (ctx env))
-      return () 
+      r <- runDefunM (defunM cunit) pool fs (Map.keys (ctx env))
+      case r of 
+        Left err -> pure $ Left err 
+        Right (ast1, _) -> pure $ Right ast1
     where 
       pool = nameSupply env
       fs = map go ds' 
@@ -83,16 +85,13 @@ defunM cunit@(CompUnit imps decls)
           mdef = Map.foldrWithKey step [] ldefs
       -- build data types 
       dts <- mapM createDataTy mdef  
-      -- liftIO $ mapM (putStrLn . pretty) dts
       -- create apply function 
       daps <- zipWithM createApply mdef dts
-      -- liftIO $ mapM (putStrLn . pretty) daps
       -- replace calls to use new function versions
       let 
         go (n,pdefs) dt fd = (n, (pdefs, dt, fd))
         mdefs' = zipWith3 go mdef dts daps
       decls' <- updateDecls mdefs' decls
-      liftIO $ mapM_ (putStrLn . pretty) decls'
       pure (CompUnit imps decls')
 
 signatureToId :: Signature Id -> Id 
