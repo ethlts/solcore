@@ -34,16 +34,20 @@ pipeline = do
         when verbose (mapM_ putStrLn (reverse $ logs env))
         r4 <- matchCompiler c'
         withErr r4 $ \ res -> do
-          when False do
+          when verbose do
             putStrLn "Desugared contract:"
             putStrLn (pretty res)
-          defunctionalize env res
-          r5 <- specialiseCompUnit res debugp env
-          putStrLn "Specialised contract:"
-          putStrLn (pretty r5)
-          let debugp = optVerbose opts
-          r6 <- emitCore debugp env r5
-          return ()
+          r5 <- defunctionalize env res
+          withErr r5 $ \ r6 -> do
+            when verbose do
+              putStrLn "Defunctionalized contract:"
+              putStrLn (pretty r6)
+            r7 <- specialiseCompUnit r6 debugp env
+            when verbose do
+              putStrLn "Specialised contract:"
+              putStrLn (pretty r7)
+            r8 <- emitCore debugp env r7
+            return ()
 
 withErr :: Either String a -> (a -> IO ()) -> IO ()
 withErr r f = either putStrLn f r
