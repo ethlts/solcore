@@ -38,7 +38,7 @@ initEcState debugp env = EcState
    { ecSubst = emptyVSubst
    , ecDT = Map.empty
    , ecNest = 0
-   , ecDebug = True -- debugp
+   , ecDebug = debugp
    }
 
 withLocalState :: EM a -> EM a
@@ -84,7 +84,7 @@ emitContract c = do
     writes ["Emitting core for contract ", cname]
     coreBody <- concatMapM emitCDecl (decls c)
     let result = Core.Contract cname coreBody
-    writeln (show result)
+    -- writeln (show result)
     -- let filename = cname ++ ".core"
     -- use output.core for now to make testing easier
     let filename = "output.core"

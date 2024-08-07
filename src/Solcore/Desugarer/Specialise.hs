@@ -76,6 +76,11 @@ panics msgs = do
     liftIO $ putStrLn $ concat ("PANIC: ":msgs)
     liftIO exitFailure
 
+nopanics :: MonadIO m => [String] -> m a
+nopanics msgs = do
+    liftIO $ putStrLn $ concat msgs
+    liftIO exitFailure
+
 -- | `withLocalState` runs a computation with a local state
 -- local changes are discarded, with the exception of the `specTable`
 withLocalState :: SM a -> SM a
@@ -182,11 +187,10 @@ specEntry name = withLocalState do
     case mres of
       Just (fd, ty, subst) -> do
         writes ["resolution: ", show name, " : ", pretty ty, "@", pretty subst]
-        -- extSpSubst subst
         specFunDef fd
         return ()
       Nothing -> do
-        errors ["! specEntry: no resolution found for ", show name]
+        nopanics ["Warning: no resolution found for ", show name]
 
 addContractResolutions :: Contract Id -> SM ()
 addContractResolutions (Contract name args decls) = do
