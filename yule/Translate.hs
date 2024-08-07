@@ -29,10 +29,10 @@ genExpr (ESnd e) = do
     case loc of
         LocPair _ r -> pure (stmts, r)
         _ -> error "ESnd: type mismatch"
-genExpr (EInl e) = do
+genExpr (EInl t e) = do
     (stmts, loc) <- genExpr e
     pure (stmts, LocSum (LocBool False) loc (LocUndefined)) -- FIXME tag
-genExpr (EInr e) = do
+genExpr (EInr t e) = do
     (stmts, loc) <- genExpr e
     pure (stmts, LocSum (LocBool True) (LocUndefined) loc) -- FIXME tag
 genExpr EUnit = pure ([], LocUnit)

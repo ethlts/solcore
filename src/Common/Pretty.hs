@@ -4,6 +4,7 @@ module Common.Pretty
 , (><)  -- to avoid hiding Prelude (<>) 
 , dotSep
 , commaSep
+, angles
 ) where
 import Text.PrettyPrint hiding((<>))
 import Text.PrettyPrint qualified as PP
@@ -26,3 +27,6 @@ dotSep = hcat . punctuate dot
 
 commaSep :: [Doc] -> Doc
 commaSep = hsep . punctuate comma
+
+angles :: Doc -> Doc
+angles d = char '<' >< d ><  char '>'

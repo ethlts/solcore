@@ -174,7 +174,8 @@ emitConApp con@(Id n ty) as = do
         case mti of
             Just (DataTy _ tvs allCons) -> do
                 (prod, code) <- translateProduct as
-                let result = encodeCon n allCons prod
+                coreTargetType <- translateTCon tcname tas
+                let result = encodeCon n allCons coreTargetType prod
                 pure (result, code)
             Nothing -> errors
                 [ "emitConApp: unknown type ", pretty tcname
@@ -197,12 +198,19 @@ translateProduct es = do
     let product = foldr1 (Core.EPair) coreExps
     pure (product, concat codes)
 
-encodeCon :: Name -> [Constr] -> Core.Expr -> Core.Expr
-encodeCon n [c] e | constrName c == n = e
-encodeCon n (con:cons) e
-    | constrName con == n = Core.EInl e
-    | otherwise = Core.EInr (encodeCon n cons e)
-
+encodeCon :: Name ->[Constr] -> Core.Type -> Core.Expr -> Core.Expr
+encodeCon n [c] _ e | constrName c == n = e
+encodeCon n cs (Core.TNamed l t) e = label l (encodeCon n cs t e)  -- this will change when we compress tags
+  where label l (Core.EInl t e) = Core.EInl (Core.TNamed l t) e
+        label l (Core.EInr t e) = Core.EInr (Core.TNamed l t) e
+        label l e = e
+encodeCon n (con:cons) t@(Core.TSum t1 t2) e
+    | constrName con == n = Core.EInl t e
+    | otherwise = Core.EInr t (encodeCon n cons t2 e)
+encodeCon n cons t e = errors
+    [ "encodeCon: no match for ", pretty t
+    , "\n", show  t
+    ]
 -----------------------------------------------------------------------
 -- Translating expressions and statements
 -----------------------------------------------------------------------

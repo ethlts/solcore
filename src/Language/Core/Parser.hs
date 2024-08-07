@@ -52,6 +52,9 @@ parens = between (symbol "(") (symbol ")")
 braces :: Parser a -> Parser a
 braces = between (symbol "{") (symbol "}")
 
+angles :: Parser a -> Parser a
+angles = between (symbol "<") (symbol ">")
+
 commaSep :: Parser a -> Parser [a]
 commaSep p = p `sepBy` symbol ","
 
@@ -94,8 +97,8 @@ pTuple = go <$> parens (commaSep coreExpr) where
 
 coreExpr :: Parser Expr
 coreExpr = choice
-    [ pKeyword "inl" *> (EInl <$> pPrimaryExpr)
-    , pKeyword "inr" *> (EInr <$> pPrimaryExpr)
+    [ pKeyword "inl" *> (EInl <$> angles coreType <*> pPrimaryExpr)
+    , pKeyword "inr" *> (EInr <$> angles coreType <*> pPrimaryExpr)
     , pKeyword "fst" *> (EFst <$> pPrimaryExpr)
     , pKeyword "snd" *> (ESnd <$> pPrimaryExpr)
     , pPrimaryExpr
@@ -129,4 +132,4 @@ coreProgram = sc *> (Core <$> many coreStmt) <* eof
 
 coreContract :: Parser Contract
 coreContract = sc *> (Contract <$> (pKeyword "contract" *> identifier )
-                  <*> braces(many coreStmt)) <* eof
+                  <*> braces (many coreStmt)) <* eof

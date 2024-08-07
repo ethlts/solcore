@@ -21,8 +21,8 @@ data Expr
     | EPair Expr Expr
     | EFst Expr
     | ESnd Expr
-    | EInl Expr
-    | EInr Expr
+    | EInl Type Expr
+    | EInr Type Expr
     | ECall Name [Expr]
     | EUnit
 instance Show Expr where
@@ -74,8 +74,8 @@ instance Pretty Expr where
     ppr (EPair e1 e2) = parens (ppr e1 >< comma <+> ppr e2)
     ppr (EFst e) = text "fst" >< parens (ppr e)
     ppr (ESnd e) = text "snd" >< parens (ppr e)
-    ppr (EInl e) = text "inl" >< parens (ppr e)
-    ppr (EInr e) = text "inr" >< parens (ppr e)
+    ppr (EInl t e) = text "inl" >< angles (ppr t) >< parens (ppr e)
+    ppr (EInr t e) = text "inr" >< angles (ppr t) >< parens (ppr e)
     ppr (ECall f es) = text f >< parens(hsep (punctuate comma (map ppr es)))
 
 instance Pretty Stmt where
