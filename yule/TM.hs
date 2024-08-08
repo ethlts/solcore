@@ -16,33 +16,58 @@ module TM
 , putVarEnv
 , withLocalEnv
 , writeln
+, writes
+, debug
 ) where
 import Common.RIO
+import Control.Monad(when)
 import qualified Data.Map as Map
 import Data.Map(Map)
 
 import Locus
 import Language.Core qualified as Core
+import qualified Options
+import Options(Options)
 
 type VarEnv = Map String Location
 type FunEnv = Map String FunInfo
 data FunInfo = FunInfo { fun_args :: [Core.Type], fun_result :: Core.Type}
-data CEnv = CEnv { env_counter :: IORef Int, env_vars :: IORef VarEnv, env_funs :: IORef FunEnv }
+data CEnv = CEnv
+    { env_counter :: IORef Int
+    , env_vars :: IORef VarEnv
+    , env_funs :: IORef FunEnv
+    , env_options :: Options
+    }
 
 type TM a = RIO CEnv a
 
-runTM :: TM a -> IO a
-runTM m = do
+runTM :: Options -> TM a -> IO a
+runTM options m = do
     counter <- newIORef 0
     vars <- newIORef Map.empty
     funs <- newIORef Map.empty
-    runRIO m (CEnv counter vars funs)
+    runRIO m (CEnv counter vars funs options)
 
 getCounter :: TM Int
 getCounter = reader env_counter >>= load
 
 setCounter :: Int -> TM ()
 setCounter n = reader env_counter >>= flip store n
+
+getDebug :: TM Bool
+getDebug = reader (Options.debug . env_options)
+
+whenDebug m = do
+    debugp <- getDebug
+    when debugp m
+
+-- writes :: MonadIO m => [String] -> m ()
+writes = writeln . concat
+errors :: [String] -> a
+errors = error . concat
+
+debug :: [String] -> TM ()
+debug msg = whenDebug $ writes msg
 
 freshId :: TM Int
 freshId = do

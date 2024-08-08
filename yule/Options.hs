@@ -7,6 +7,7 @@ data Options = Options
     , contract :: String
     , output :: FilePath
     , verbose :: Bool
+    , debug :: Bool
     } deriving Show
 
 optionsParser :: Parser Options
@@ -30,6 +31,12 @@ optionsParser = Options
         ( long "verbose"
         <> short 'v'
         <> help "Verbosity level"
+        <> showDefault
+        )
+    <*> switch
+        ( long "debug"
+        <> short 'd'
+        <> help "Diagnostic output"
         <> showDefault
         )
 

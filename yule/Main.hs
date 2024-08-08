@@ -6,7 +6,8 @@ import Common.Pretty(Pretty(..), nest, render)
 import TM
 import Translate
 import Language.Yul(wrapInSolFunction, wrapInContract)
-import Options
+import qualified Options
+import Options(parseOptions)
 import Control.Monad(when)
 import Data.String(fromString)
 
@@ -15,20 +16,20 @@ main :: IO ()
 main = do
     options <- parseOptions
     -- print options
-    let filename = input options
+    let filename = Options.input options
     src <- readFile filename
     let coreContract = parseContract filename src
     let core = ccStmts coreContract
-    when (verbose options) $ do
+    when (Options.verbose options) $ do
         putStrLn "/* Core:"
         putStrLn (render (nest 2 (ppr coreContract)))
         putStrLn "*/"
-    generatedYul <- runTM (translateStmts core)
+    generatedYul <- runTM options (translateStmts core)
     let fooFun = wrapInSolFunction "wrapper" generatedYul
     let doc = wrapInContract (fromString (ccName coreContract)) "wrapper()" fooFun
     -- putStrLn (render doc)
-    putStrLn ("writing output to " ++ output options)
-    writeFile (output options) (render doc)
+    putStrLn ("writing output to " ++ Options.output options)
+    writeFile (Options.output options) (render doc)
 
 
 
