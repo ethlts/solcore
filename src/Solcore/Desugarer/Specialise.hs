@@ -291,12 +291,7 @@ specFunDef fd = withLocalState do
 specBody :: [Stmt Id] -> SM [Stmt Id]
 specBody = mapM specStmt
 
-specStmt :: Stmt Id -> SM(Stmt Id)
-specStmt stmt@(Return e) = do
-  subst <- getSpSubst
-  let ty = typeOfTcExp e
-  let ty' = apply subst ty
-  case ty' of
+ensureSimple ty' stmt subst = case ty' of
     TyVar _ -> panics [ "specStmt(",pretty stmt,"): polymorphic return type: "
                       ,  pretty ty', " subst=", pretty subst]
     _ :-> _ -> panics [ "specStmt(",pretty stmt,"): function return type: "
@@ -304,33 +299,47 @@ specStmt stmt@(Return e) = do
                       ,"\nIn:\n", show stmt
                       ]
     _ -> return ()
+specStmt :: Stmt Id -> SM(Stmt Id)
+specStmt stmt@(Return e) = do
+  subst <- getSpSubst
+  let ty = typeOfTcExp e
+  let ty' = apply subst ty
+  ensureSimple ty' stmt subst
   -- writes ["> specExp (Return): ", pretty e," : ", pretty ty, " ~> ", pretty ty']
   e' <- specExp e ty'
   -- writes ["< specExp (Return): ", pretty e']
   return $ Return e'
+
 specStmt (Match exps alts) = specMatch exps alts
+
+specStmt stmt@(Var i := e) = do
+  subst <- getSpSubst
+  i' <- atCurrentSubst i
+  let ty' = idType i'
+  debug ["specStmt (:=): ", pretty i, " : ", pretty (idType i)
+        , " @ ", pretty subst, "~>'", pretty ty']
+  ensureSimple ty' stmt subst
+  e' <- specExp e ty'
+  debug ["< specExp (:=): ", pretty e']
+  return $ Var i' := e'
+
 specStmt stmt@(Let i mty mexp) = do
   subst <- getSpSubst
   -- debug ["specStmt (Let): ", pretty i, " : ", pretty (idType i), " @ ", pretty subst]
   i' <- atCurrentSubst i
   let ty' = idType i'
-  case ty' of
-    TyVar _ -> panics ["specStmt(",pretty stmt,"): polymorphic type of "
-                      , pretty i, ": ", pretty ty'
-                      , "\nsubst=", pretty subst
-                      ]
-    _ :-> _ -> panics ["specStmt(",pretty stmt,"): function type: ", pretty ty']
-    _ -> return ()
+  ensureSimple ty' stmt subst
   mty' <- atCurrentSubst mty
   case mexp of
     Nothing -> return $ Let i' mty' Nothing
-    Just e -> Let i' mty' <$>  Just <$> specExp e ty'
+    Just e -> Let i' mty' . Just <$> specExp e ty'
+
 specStmt (StmtExp e) = do
   ty <- atCurrentSubst (typeOfTcExp e)
   e' <- specExp e ty
   return $ StmtExp e'
+
 specStmt stmt = errors ["specStmt not implemented for: ", show stmt]
--- specStmt subst stmt = pure stmt -- FIXME
 
 specMatch :: [Exp Id] -> [([Pat Id], [Stmt Id])] -> SM (Stmt Id)
 specMatch exps alts = do

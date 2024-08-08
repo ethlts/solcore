@@ -230,6 +230,12 @@ emitStmt s@(Return e) = do
     let result = stmts ++ [Core.SReturn e']
     --- debug ["<  emitStmt ", show (Core.Core result)]
     return result
+
+emitStmt (Var i := e) = do
+    (e', stmts) <- emitExp e
+    let assign = [Core.SAssign (Core.EVar (unwrapId i)) e']
+    return (stmts ++ assign)
+
 emitStmt (Let (Id name ty) mty mexp ) = do
     let coreName = unName name
     coreTy <- translateType ty
