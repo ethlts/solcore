@@ -14,6 +14,12 @@ instance Show YulStmt where show = render . ppr
 instance Show YulExp where show = render . ppr
 instance Show YLiteral where show = render . ppr
 
+instance Semigroup Yul where
+  Yul a <> Yul b = Yul (a <> b)
+
+instance Monoid Yul where
+  mempty = Yul []
+
 type YArg = Name
 type YReturns = Maybe [Name]
 pattern YNoReturn :: Maybe a
