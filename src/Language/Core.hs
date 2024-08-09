@@ -89,22 +89,25 @@ instance Pretty Stmt where
     ppr (SAssembly stmts) = vcat (map ppr stmts)
     ppr (SReturn e) = text "return" <+> ppr e
     ppr (SComment c) = text "//" <+> text c
-    ppr (SBlock stmts) = lbrace $$ nest 4 (vcat (map ppr stmts)) $$ rbrace
+    ppr (SBlock stmts) = lbrace $$ nest 2 (vcat (map ppr stmts)) $$ rbrace
     ppr (SMatch e [left, right]) =
-        text "match" <+> ppr e <+> text "with" $$ lbrace
-           $$ nest 2 (vcat [prettyAlt left, prettyAlt right]) $$ rbrace
+        text "match" <+> ppr e <+> text "with"
+        <+> lbrace $$ nest 2 (vcat [ppr left, ppr right]) $$ rbrace
         where
             prettyAlt (Alt c n s) = ppr c <+> text n <+> text "=>" <+> ppr s
     -- This should not happen, but included for completeness
     ppr (SMatch e alts) = text "/* Nonstandard match! */" <+>
-        text "match" <+> ppr e <+> text "with" $$ lbrace
-           $$ nest 2 (vcat $ map prettyAlt alts) $$ rbrace
-        where
-            prettyAlt (Alt c n s) = ppr c <+> text n <+> text "=>" <+> ppr s
+        text "match" <+> ppr e <+> text "with"
+        <+> lbrace $$ nest 2 (vcat $ map ppr alts) $$ rbrace
     ppr (SFunction f args ret stmts) =
-        text "function" <+> text f <+> parens (hsep (punctuate comma (map ppr args))) <+> text "->" <+> ppr ret <+> lbrace
-           $$ nest 2 (vcat (map ppr stmts))  $$ rbrace
+        text "function" <+> text f
+        <+> parens (hsep (punctuate comma (map ppr args)))
+        <+> text "->" <+> ppr ret
+        <+> lbrace $$ nest 2 (vcat (map ppr stmts))  $$ rbrace
     ppr (SRevert s) = text "revert" <+> text (show s)
+
+instance Pretty Alt where
+    ppr (Alt c n s) = ppr c <+> text n <+> text "=>" <+> ppr s
 
 instance Pretty Con where
     ppr CInl = text "inl"
