@@ -180,8 +180,15 @@ tcField (Field n t _)
 tcInstance :: Instance Name -> TcM (Instance Id)
 tcInstance (Instance ctx n ts t funs) 
   = do
-      (funs', _, _) <- unzip3 <$> mapM tcFunDef funs
-      pure (Instance ctx n ts t funs')
+      (funs', _, ts') <- unzip3 <$> mapM tcFunDef funs
+      schs <- mapM (askEnv . sigName . funSignature) funs 
+      let ts1 = map (\ (Forall _ (_ :=> t)) -> t) schs 
+          applyT :: Subst -> Ty -> Ty 
+          applyT s t = apply s t
+      liftIO $ mapM_ (putStrLn . pretty) ts'
+      liftIO $ mapM_ (putStrLn . pretty) ts1
+      s <- unifyTypes ts' ts1
+      pure $ everywhere (mkT (applyT s)) $ Instance ctx n ts t funs'
 
 tcClass :: Class Name -> TcM (Class Id)
 tcClass (Class ctx n vs v sigs) 
@@ -396,7 +403,8 @@ checkInstances = mapM_ checkInstance
 
 checkInstance :: Instance Name -> TcM ()
 checkInstance (Instance ctx n ts t funs)
-  = do 
+  = do
+      liftIO $ putStrLn "Oiii"
       let ipred = InCls n t ts
       -- checking the coverage condition 
       insts <- askInstEnv n `wrapError` ipred
@@ -453,11 +461,7 @@ checkMethod ih@(InCls n t ts) (FunDef sig _)
                                , unName $ sigName sig])
                       (findPred n qs)
       -- matching substitution of instance head and class predicate
-      s <- liftEither (matchPred p ih) `wrapError` ih
-      tps <- apply s <$> mapM tyParam (sigParams sig)
-      tr <- maybe freshTyVar pure (sigReturn sig)
-      let it = funtype tps tr
-      match it (apply s ty) `wrapError` ih 
+      _ <- liftEither (matchPred p ih) `wrapError` ih
       pure ()
 
 tyParam :: Param Name -> TcM Ty 

@@ -10,8 +10,7 @@ import Solcore.Frontend.Syntax.Name
 import Solcore.Frontend.Pretty.Name
 import Solcore.Frontend.Syntax.Stmt 
 import Solcore.Frontend.Syntax.Ty
-import Solcore.Frontend.TypeInference.NameSupply
-import Solcore.Frontend.TypeInference.TcSubst
+import Solcore.Frontend.TypeInference.TcSubst 
 
 import Common.Pretty
 import Language.Yul
@@ -139,7 +138,7 @@ instance Pretty a => Pretty (Instance a) where
 pprContext :: Bool -> [Pred] -> Doc 
 pprContext _ [] = empty 
 pprContext b ps 
-  = parens $ (commaSep $ map ppr ps) <+> if b then text "=>" else empty 
+  = (parens (commaSep $ map ppr ps)) <+> if b then text "=>" else empty 
 
 instance Pretty [Pred] where 
   ppr = hsep . map ppr 
@@ -257,11 +256,8 @@ instance Pretty Pred where
     ppr t1 <+> text "~" <+> ppr t2
 
 instance Pretty Scheme where
-  ppr (Forall vs ty) = ppr' (Forall vs' ty') 
+  ppr (Forall vs ty) = ppr' (Forall vs ty) 
     where 
-      vs' = TVar <$> take (length vs) namePool 
-      s = Subst (zip vs (TyVar <$> vs'))
-      ty' = apply s ty
       ppr' (Forall [] (ctx :=> t))
         = pprContext True ctx <+> ppr t
       ppr' (Forall vs (ctx :=> t)) 
