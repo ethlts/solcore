@@ -8,6 +8,7 @@ data Options = Options
     , output :: FilePath
     , verbose :: Bool
     , debug :: Bool
+    , compress :: Bool
     } deriving Show
 
 optionsParser :: Parser Options
@@ -39,7 +40,12 @@ optionsParser = Options
         <> help "Diagnostic output"
         <> showDefault
         )
-
+    <*> switch
+        ( long "compress"
+        <> short 'O'
+        <> help "Compress sums (experimental)"
+        <> showDefault
+        )
 parseOptions :: IO Options
 parseOptions = execParser opts
   where
