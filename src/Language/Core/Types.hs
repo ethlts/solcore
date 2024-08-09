@@ -5,6 +5,7 @@ data Type
     | TBool
     | TPair Type Type
     | TSum Type Type
+    | TSumN [Type]
     | TFun [Type] Type
     | TUnit
     | TNamed String Type

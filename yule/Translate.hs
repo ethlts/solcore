@@ -40,6 +40,7 @@ genExpr (EInr (TSum l r) e) = do
     pure (stmts, LocSeq[LocBool True, loc'])
 genExpr (EInl (TNamed n t) e) = genExpr (EInl t e)  -- FIXME: compression
 genExpr (EInr (TNamed n t) e) = genExpr (EInr t e)  -- FIXME: compression
+
 genExpr EUnit = pure ([], LocUnit)
 genExpr (ECall name args) = do
     (argCodes, argLocs) <- unzip <$> mapM genExpr args
@@ -148,7 +149,7 @@ scanStmt (SFunction name args ret stmts) = do
 scanStmt _ = pure ()
 
 genAlts :: Location -> Location -> [Alt] -> TM [(YLiteral, [YulStmt])]
-genAlts locL locR [Alt lname lstmt, Alt rname rstmt] = do
+genAlts locL locR [Alt lcon lname lstmt, Alt rcon rname rstmt] = do
     yulLStmts <- withName lname locL lstmt
     yulRStmts <- withName rname locR rstmt
     pure [(YulFalse, yulLStmts), (YulTrue, yulRStmts)]

@@ -3,6 +3,7 @@ import Language.Core
     ( Core(..), Contract(..),
       Alt(..),
       Arg(..),
+      Con(..),
       Stmt(SExpr, SAlloc, SReturn, SBlock, SMatch, SFunction, SAssign, SAssembly, SRevert),
       Expr(..),
       Type(..) )
@@ -43,6 +44,9 @@ identifier = lexeme ((:) <$> startIdentChar <*> many identChar)
 integer :: Parser Integer
 integer = lexeme L.decimal
 
+int :: Parser Int
+int = fromInteger <$> integer
+
 stringLiteral :: Parser String
 stringLiteral = lexeme (char '"' *> manyTill L.charLiteral (char '"'))
 
@@ -66,6 +70,7 @@ pPrimaryType = choice
     [ TWord <$ pKeyword "word"
     , TBool <$ pKeyword "bool"
     , TUnit <$ pKeyword "unit"
+    , TSumN <$> ( pKeyword "sum" *> parens (commaSep coreType))
     , parens coreType
     , TNamed <$> identifier <*> braces coreType
     ]
@@ -99,6 +104,7 @@ coreExpr :: Parser Expr
 coreExpr = choice
     [ pKeyword "inl" *> (EInl <$> angles coreType <*> pPrimaryExpr)
     , pKeyword "inr" *> (EInr <$> angles coreType <*> pPrimaryExpr)
+    , pKeyword "in" *> (EInK <$> parens int <*> coreType <*> pPrimaryExpr)
     , pKeyword "fst" *> (EFst <$> pPrimaryExpr)
     , pKeyword "snd" *> (ESnd <$> pPrimaryExpr)
     , pPrimaryExpr
@@ -123,9 +129,16 @@ coreArg = TArg <$> identifier <*> (symbol ":" *> coreType)
 
 coreAlt :: Parser Alt  -- FIXME: distinguish inl/inr
 coreAlt = choice
-    [ Alt <$> (pKeyword "inl" *> identifier <* symbol "=>") <*> coreStmt
-    , Alt <$> (pKeyword "inr" *> identifier <* symbol "=>") <*> coreStmt
-    ]
+    [ Alt CInl <$> (pKeyword "inl" *> identifier <* symbol "=>") <*> coreStmt
+    , Alt CInr <$> (pKeyword "inr" *> identifier <* symbol "=>") <*> coreStmt
+    , cink
+    ] where
+        cink = do
+            pKeyword "in"
+            k <- parens int
+            name <- identifier
+            symbol "=>"
+            Alt (CInK k) name <$> coreStmt
 
 coreProgram :: Parser Core
 coreProgram = sc *> (Core <$> many coreStmt) <* eof

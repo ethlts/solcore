@@ -365,12 +365,12 @@ emitSumMatch allCons scrutinee alts = do
       buildMatch _ [] = error "buildMatch: empty branch list" 
       buildMatch sval branches = go sval branches where
         go sval [b] = b -- last branch needs no match
-        go sval (b:bs) =  [Core.SMatch sval [ alt left b
-                          , alt right (go (Core.EVar right) bs)]]
+        go sval (b:bs) =  [Core.SMatch sval [ alt Core.CInl left b
+                          , alt Core.CInr right (go (Core.EVar right) bs)]]
         left = altName False
         right = altName True
-        alt n [stmt] = Core.Alt n stmt
-        alt n stmts = Core.Alt n (Core.SBlock stmts)
+        alt con n [stmt] = Core.Alt con n stmt
+        alt con n stmts = Core.Alt con n (Core.SBlock stmts)
 
         body [stmt] = stmt
         body stmts = Core.SBlock stmts
