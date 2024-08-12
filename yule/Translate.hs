@@ -8,7 +8,7 @@ import TM
 import Language.Yul
 import Solcore.Frontend.Syntax.Name
 import Data.String
-
+import Common.Pretty
 genExpr :: Expr -> TM ([YulStmt], Location)
 genExpr (EWord n) = pure ([], LocWord n)
 genExpr (EBool b) = pure ([], LocBool b)
@@ -40,6 +40,12 @@ genExpr (EInr (TSum l r) e) = do
     pure (stmts, LocSeq[LocBool True, loc'])
 genExpr (EInl (TNamed n t) e) = genExpr (EInl t e)  -- FIXME: compression
 genExpr (EInr (TNamed n t) e) = genExpr (EInr t e)  -- FIXME: compression
+
+genExpr (EInK k (TSumN ts) e) = do
+    (stmts, loc) <- genExpr e
+    let maxsize = maximum (map sizeOf ts)
+    let loc' = loc `padToSize` maxsize
+    pure (stmts, LocSeq[LocWord (fromIntegral k), loc'])
 
 genExpr EUnit = pure ([], LocUnit)
 genExpr (ECall name args) = do
@@ -97,26 +103,25 @@ genStmt (SReturn expr) = do
 
 genStmt (SBlock stmts) = withLocalEnv do genStmts stmts
 
-genStmt (SMatch t e alts) = do
-    (stmts, loc) <- genExpr e
-    debug ["SMatch: ", show e , " @ " , show loc]
+genStmt (SMatch sty e alts) = do
+    (stmts, scrutineeLoc) <- genExpr e
+    debug ["> SMatch: ", show e , ":", show sty, " @ " , show scrutineeLoc]
 
-    case normalizeLoc loc of
+    case normalizeLoc scrutineeLoc of
         loc@(LocEmpty n) -> error ("SMatch: invalid location " ++ show loc)
         LocSeq (loctag:rest) ->  genSwitch loctag (LocSeq rest) alts
         -- Special case: only tag, empty payload
         loctag -> genSwitch loctag LocUnit alts
      where
         genSwitch :: Location -> Location -> [Alt] -> TM [YulStmt]
-        genSwitch loctag payload alts = do
-            yulAlts <- genAlts payload payload alts
-            pure [YSwitch (yultag loctag) yulAlts Nothing]
-        yultag (LocStack i) = YIdent (stkLoc i)
-        yultag (LocBool b) = yulBool b
-        yultag (LocWord n) = yulInt n
-        yultag (LocSeq [l]) = yultag l
-        yultag t = error ("invalid tag: "++show t)
-
+        genSwitch tag payload alts = do
+            yulAlts <- if isBinSum sty
+                       then genBinAlts payload alts
+                       else genNAlts payload alts
+            pure [YSwitch (loadLoc tag) yulAlts Nothing]
+        isBinSum (TSum _ _) = True
+        isBinSum (TNamed _ t) = isBinSum t
+        isBinSum _ = False
 genStmt (SFunction name args ret stmts) = withLocalEnv do
     debug ["> SFunction: ", name]
     yulArgs <- placeArgs args
@@ -149,17 +154,30 @@ scanStmt (SFunction name args ret stmts) = do
     insertFun name info
 scanStmt _ = pure ()
 
-genAlts :: Location -> Location -> [Alt] -> TM [(YLiteral, [YulStmt])]
-genAlts locL locR [Alt lcon lname lstmt, Alt rcon rname rstmt] = do
-    yulLStmts <- withName lname locL lstmt
-    yulRStmts <- withName rname locR rstmt
+genBinAlts :: Location -> [Alt] -> TM [(YLiteral, [YulStmt])]
+genBinAlts payload [Alt lcon lname lstmt, Alt rcon rname rstmt] = do
+    yulLStmts <- withName lname payload lstmt
+    yulRStmts <- withName rname payload rstmt
     pure [(YulFalse, yulLStmts), (YulTrue, yulRStmts)]
     where
         withName name loc stmt = withLocalEnv do
             insertVar name loc
             genStmt stmt
-genAlts _ _ _ = error "genAlts: invalid number of alternatives"
+genBinAlts _ alts = error("genAlts: invalid number of alternatives:\n" 
+                          ++ unlines(map (render . ppr) alts) )
 
+genNAlts :: Location -> [Alt] -> TM [(YLiteral, [YulStmt])]
+genNAlts payload alts = do mapM (genAlt payload) alts
+
+genAlt :: Location -> Alt -> TM (YLiteral, [YulStmt])
+genAlt payload (Alt con name stmt) = withLocalEnv do
+    insertVar name payload
+    yulStmts <- genStmt stmt
+    pure (yulCon con, yulStmts)
+    where
+        yulCon CInl = YulFalse
+        yulCon CInr = YulTrue
+        yulCon (CInK k) = YulNumber (fromIntegral k)
 
 allocVar :: Core.Name -> Type -> TM [YulStmt]
 allocVar name typ = do
@@ -175,6 +193,7 @@ buildLoc TWord = LocStack <$> freshId
 buildLoc TBool = LocStack <$> freshId
 
 buildLoc t@(TSum t1 t2) = LocSeq <$> sequence (replicate (sizeOf t) freshStackLoc)
+buildLoc t@(TSumN ts) = LocSeq <$> sequence (replicate (sizeOf t) freshStackLoc)
 buildLoc TUnit = pure (LocSeq [])
 buildLoc (TPair t1 t2) = LocSeq <$> sequence [buildLoc t1, buildLoc t2]
 buildLoc (TNamed n ty) = buildLoc ty
@@ -280,6 +299,7 @@ instance HasSize Type where
     sizeOf TBool = 1
     sizeOf (TPair t1 t2) = sizeOf t1 + sizeOf t2
     sizeOf (TSum t1 t2)  = 1 + max (sizeOf t1) (sizeOf t2)
+    sizeOf (TSumN ts) = 1 + maximum (map sizeOf ts)
     sizeOf TUnit = 0
     sizeOf (TNamed _ t) = sizeOf t
 

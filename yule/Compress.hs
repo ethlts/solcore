@@ -46,7 +46,8 @@ compressInjections ty@(TSumN ts) e = go 0 e where
 
     To do this we need to know the scrutinee type
 -}
-compressMatch cty@(TSumN ts) top@(SMatch ty e alts) = SMatch ty e' (go 0 top) where
+compressMatch cty@(TSumN ts) top@(SMatch ty e alts) = SMatch ty' e' (go 0 top) where
+    ty' = compress ty
     e' = compress e
     arity = length ts
     go k s@(SMatch t@(TNamed n ty) e alts) = go k (SMatch ty e alts)
