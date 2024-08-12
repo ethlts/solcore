@@ -96,7 +96,8 @@ genStmt (SReturn expr) = do
     pure (stmts ++ stmts')
 
 genStmt (SBlock stmts) = withLocalEnv do genStmts stmts
-genStmt (SMatch e alts) = do
+
+genStmt (SMatch t e alts) = do
     (stmts, loc) <- genExpr e
     debug ["SMatch: ", show e , " @ " , show loc]
 
@@ -106,6 +107,7 @@ genStmt (SMatch e alts) = do
         -- Special case: only tag, empty payload
         loctag -> genSwitch loctag LocUnit alts
      where
+        genSwitch :: Location -> Location -> [Alt] -> TM [YulStmt]
         genSwitch loctag payload alts = do
             yulAlts <- genAlts payload payload alts
             pure [YSwitch (yultag loctag) yulAlts Nothing]
@@ -114,7 +116,6 @@ genStmt (SMatch e alts) = do
         yultag (LocWord n) = yulInt n
         yultag (LocSeq [l]) = yultag l
         yultag t = error ("invalid tag: "++show t)
-        genSwitch :: Location -> Location -> [Alt] -> TM [YulStmt]
 
 genStmt (SFunction name args ret stmts) = withLocalEnv do
     debug ["> SFunction: ", name]

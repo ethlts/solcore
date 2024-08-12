@@ -39,7 +39,8 @@ data Stmt
     | SReturn Expr
     | SComment String
     | SBlock [Stmt]
-    | SMatch Expr [Alt]
+    -- | SMatch Expr [Alt]
+    | SMatch Type Expr [Alt]
     | SFunction Name [Arg] Type [Stmt]
     | SRevert String
     -- deriving Show
@@ -90,8 +91,13 @@ instance Pretty Stmt where
     ppr (SReturn e) = text "return" <+> ppr e
     ppr (SComment c) = text "//" <+> text c
     ppr (SBlock stmts) = lbrace $$ nest 2 (vcat (map ppr stmts)) $$ rbrace
+    {-
     ppr (SMatch e alts) =
         text "match" <+> ppr e <+> text "with"
+        <+> lbrace $$ nest 2 (vcat $ map ppr alts) $$ rbrace
+    -}
+    ppr (SMatch t e alts) =
+        text "match" >< angles (ppr t) <+> ppr e <+> text "with"
         <+> lbrace $$ nest 2 (vcat $ map ppr alts) $$ rbrace
     ppr (SFunction f args ret stmts) =
         text "function" <+> text f

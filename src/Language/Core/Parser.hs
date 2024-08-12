@@ -4,7 +4,8 @@ import Language.Core
       Alt(..),
       Arg(..),
       Con(..),
-      Stmt(SExpr, SAlloc, SReturn, SBlock, SMatch, SFunction, SAssign, SAssembly, SRevert),
+      Stmt(SExpr, SAlloc, SReturn, SBlock, SMatch,
+           SFunction, SAssign, SAssembly, SRevert),
       Expr(..),
       Type(..) )
 import Common.LightYear
@@ -114,8 +115,9 @@ coreStmt :: Parser Stmt
 coreStmt = choice
     [ SAlloc <$> (pKeyword "let" *> identifier) <*> (symbol ":" *> coreType)
     , SReturn <$> (pKeyword "return" *> coreExpr)
-    , SBlock <$> between (symbol "{") (symbol "}") (many coreStmt)
-    , SMatch <$> (pKeyword "match" *> coreExpr <* pKeyword "with") <*> (symbol "{" *> many coreAlt <* symbol "}")
+    , SBlock <$> braces(many coreStmt)
+    , SMatch <$> (pKeyword "match" *> angles coreType) <*> (coreExpr <* pKeyword "with") <*> braces(many coreAlt)
+    -- , SMatch <$> (pKeyword "match" *> coreExpr <* pKeyword "with") <*> (symbol "{" *> many coreAlt <* symbol "}")
     , SFunction <$> (pKeyword "function" *> identifier) <*> (parens (commaSep coreArg)) <*> (symbol "->" *> coreType)
                 <*> (symbol "{" *> many coreStmt <* symbol "}")
     , SAssembly <$> (pKeyword "assembly" *> yulBlock)
