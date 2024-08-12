@@ -90,13 +90,7 @@ instance Pretty Stmt where
     ppr (SReturn e) = text "return" <+> ppr e
     ppr (SComment c) = text "//" <+> text c
     ppr (SBlock stmts) = lbrace $$ nest 2 (vcat (map ppr stmts)) $$ rbrace
-    ppr (SMatch e [left, right]) =
-        text "match" <+> ppr e <+> text "with"
-        <+> lbrace $$ nest 2 (vcat [ppr left, ppr right]) $$ rbrace
-        where
-            prettyAlt (Alt c n s) = ppr c <+> text n <+> text "=>" <+> ppr s
-    -- This should not happen, but included for completeness
-    ppr (SMatch e alts) = text "/* Nonstandard match! */" <+>
+    ppr (SMatch e alts) =
         text "match" <+> ppr e <+> text "with"
         <+> lbrace $$ nest 2 (vcat $ map ppr alts) $$ rbrace
     ppr (SFunction f args ret stmts) =
