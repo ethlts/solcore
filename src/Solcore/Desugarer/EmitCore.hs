@@ -148,7 +148,7 @@ translateTCon tycon tas = do
     case mti of
         Just (DataTy n tvs cs) -> do
             let subst = Subst $ zip tvs tas
-            buildSumType <$> mapM (translateDCon subst) cs
+            Core.TNamed (show tycon) . buildSumType <$> mapM (translateDCon subst) cs
         Nothing -> errors ["translateTCon: unknown type ", pretty tycon, "\n", show tycon]
   where
       buildSumType [] = errors ["empty sum ", pretty tycon] -- Core.TUnit
@@ -174,7 +174,8 @@ emitConApp con@(Id n ty) as = do
         case mti of
             Just (DataTy _ tvs allCons) -> do
                 (prod, code) <- translateProduct as
-                let result = encodeCon n allCons prod
+                coreTargetType <- translateTCon tcname tas
+                let result = encodeCon n allCons coreTargetType prod
                 pure (result, code)
             Nothing -> errors
                 [ "emitConApp: unknown type ", pretty tcname
@@ -197,12 +198,19 @@ translateProduct es = do
     let product = foldr1 (Core.EPair) coreExps
     pure (product, concat codes)
 
-encodeCon :: Name -> [Constr] -> Core.Expr -> Core.Expr
-encodeCon n [c] e | constrName c == n = e
-encodeCon n (con:cons) e
-    | constrName con == n = Core.EInl e
-    | otherwise = Core.EInr (encodeCon n cons e)
-
+encodeCon :: Name ->[Constr] -> Core.Type -> Core.Expr -> Core.Expr
+encodeCon n [c] _ e | constrName c == n = e
+encodeCon n cs (Core.TNamed l t) e = label l (encodeCon n cs t e)  -- this will change when we compress tags
+  where label l (Core.EInl t e) = Core.EInl (Core.TNamed l t) e
+        label l (Core.EInr t e) = Core.EInr (Core.TNamed l t) e
+        label l e = e
+encodeCon n (con:cons) t@(Core.TSum t1 t2) e
+    | constrName con == n = Core.EInl t e
+    | otherwise = Core.EInr t (encodeCon n cons t2 e)
+encodeCon n cons t e = errors
+    [ "encodeCon: no match for ", pretty t
+    , "\n", show  t
+    ]
 -----------------------------------------------------------------------
 -- Translating expressions and statements
 -----------------------------------------------------------------------
@@ -300,6 +308,8 @@ emitSumMatch :: [Constr] -> Exp Id -> Equations Id -> EM [Core.Stmt]
 emitSumMatch allCons scrutinee alts = do
     let 
     (sVal, sCode) <- emitExp scrutinee
+    let sType = typeOfTcExp scrutinee
+    sCoreType <- translateType sType
     -- TODO: build branch list in order matching allCons
     -- by inserting them into a map and then outputting in order
     -- take default branch from last equation into account
@@ -310,7 +320,7 @@ emitSumMatch allCons scrutinee alts = do
     let branchMap = foldr insertBranch defaultBranchMap branches
     let branches = [branchMap Map.! c | c <- allConNames]
     debug ["emitMatch: branches ", show branches]
-    let matchCode = buildMatch sVal branches
+    let matchCode = buildMatch sVal sCoreType branches
     return(sCode ++ matchCode)
     where
       allConNames = map constrName allCons
@@ -341,7 +351,7 @@ emitSumMatch allCons scrutinee alts = do
 
       {- buildMatch builds a nested match statement from a list of branches
          e.g. [b1, b2, b3] yields
-            match s with {
+            match<type> s with {
                 inl $left => b1
                 inr $right => match $right with {
                     inl $left => b2
@@ -353,16 +363,19 @@ emitSumMatch allCons scrutinee alts = do
           they can be reused in subsequent branches (no need for unique names 
           as long as they do not clash with user variables)
       -}
-      buildMatch :: Core.Expr -> [[Core.Stmt]] -> [Core.Stmt]
-      buildMatch _ [] = error "buildMatch: empty branch list" 
-      buildMatch sval branches = go sval branches where
-        go sval [b] = b -- last branch needs no match
-        go sval (b:bs) =  [Core.SMatch sval [ alt left b
-                          , alt right (go (Core.EVar right) bs)]]
+      buildMatch :: Core.Expr -> Core.Type ->[[Core.Stmt]] -> [Core.Stmt]
+      buildMatch sval sty [] = error "buildMatch: empty branch list"
+      buildMatch sval sty branches = go sval sty branches where
+        go sval sty  [b] = b -- last branch needs no match
+        go sval sty (b:bs) =  [Core.SMatch sty sval [ alt Core.CInl left b
+                          , alt Core.CInr right (go (Core.EVar right) (rightBranch sty) bs)]]
+        rightBranch (Core.TSum _ r) = r
+        rightBranch (Core.TNamed _ t) = rightBranch t
+        rightBranch t = error ("rightBranch: not a sum type: " ++ show t)
         left = altName False
         right = altName True
-        alt n [stmt] = Core.Alt n stmt
-        alt n stmts = Core.Alt n (Core.SBlock stmts)
+        alt con n [stmt] = Core.Alt con n stmt
+        alt con n stmts = Core.Alt con n (Core.SBlock stmts)
 
         body [stmt] = stmt
         body stmts = Core.SBlock stmts

@@ -18,7 +18,7 @@ genExpr (EVar name) = do
 genExpr (EPair e1 e2) = do
     (stmts1, loc1) <- genExpr e1
     (stmts2, loc2) <- genExpr e2
-    pure (stmts1 ++ stmts2, LocPair loc1 loc2)
+    pure (stmts1 ++ stmts2, LocSeq [loc1,loc2])
 genExpr (EFst e) = do
     (stmts, loc) <- genExpr e
     case loc of
@@ -29,12 +29,18 @@ genExpr (ESnd e) = do
     case loc of
         LocPair _ r -> pure (stmts, r)
         _ -> error "ESnd: type mismatch"
-genExpr (EInl e) = do
+genExpr (EInl (TSum l r) e) = do
     (stmts, loc) <- genExpr e
-    pure (stmts, LocSum (LocBool False) loc (LocUndefined)) -- FIXME tag
-genExpr (EInr e) = do
+    let loc' = loc `padToSize` sizeOf r
+    pure (stmts, LocSeq[LocBool False,loc'])
+
+genExpr (EInr (TSum l r) e) = do
     (stmts, loc) <- genExpr e
-    pure (stmts, LocSum (LocBool True) (LocUndefined) loc) -- FIXME tag
+    let loc' = loc `paddedTo` r
+    pure (stmts, LocSeq[LocBool True, loc'])
+genExpr (EInl (TNamed n t) e) = genExpr (EInl t e)  -- FIXME: compression
+genExpr (EInr (TNamed n t) e) = genExpr (EInr t e)  -- FIXME: compression
+
 genExpr EUnit = pure ([], LocUnit)
 genExpr (ECall name args) = do
     (argCodes, argLocs) <- unzip <$> mapM genExpr args
@@ -51,18 +57,13 @@ flattenRhs :: Location -> [YulExp]
 flattenRhs (LocWord n) = [yulInt n]
 flattenRhs (LocBool b) = [yulBool b]
 flattenRhs (LocStack i) = [YIdent (stkLoc i)]
-flattenRhs (LocPair l r) = flattenRhs l ++ flattenRhs r
-flattenRhs (LocSum t l r) = flattenRhs t ++ maxList(flattenRhs l) (flattenRhs r)
-flattenRhs LocUnit = []
-flattenRhs LocUndefined = []
+flattenRhs (LocSeq ls) = concatMap flattenRhs ls
+flattenRhs (LocEmpty size) = replicate size yulPoison
 flattenRhs l = error ("flattenRhs: not implemented for "++show l)
 
 flattenLhs :: Location -> [Name]
 flattenLhs (LocStack i) = [stkLoc i]
-flattenLhs (LocPair l r) = flattenLhs l ++ flattenLhs r
-flattenLhs (LocSum t l r) = flattenLhs t ++ maxList (flattenLhs l) (flattenLhs r)
-flattenLhs LocUnit = []
-flattenLhs LocUndefined = []
+flattenLhs (LocSeq ls) = concatMap flattenLhs ls
 flattenLhs l = error ("flattenLhs: not implemented for "++show l)
 
 
@@ -71,6 +72,10 @@ maxList [] ys = ys
 maxList xs [] = xs
 maxList (x:xs) (y:ys) | x == y = x : maxList xs ys
 maxList xs ys = error ("maxList: mismatch "++show xs++" "++show ys)
+
+joinLocs :: Location -> Location -> [Location]
+joinLocs l1 l2 | l1 == l2 = [l1]
+
 
 genStmtWithComment :: Stmt -> TM [YulStmt]
 genStmtWithComment (SComment c) = pure [YComment c]
@@ -91,19 +96,29 @@ genStmt (SReturn expr) = do
     pure (stmts ++ stmts')
 
 genStmt (SBlock stmts) = withLocalEnv do genStmts stmts
-genStmt (SMatch e alts) = do
+
+genStmt (SMatch t e alts) = do
     (stmts, loc) <- genExpr e
-    case loc of
-        LocSum loctag l r -> do
-            yulAlts <- genAlts l r alts
-            pure (stmts ++ [YSwitch (yultag loctag) yulAlts Nothing]) where
-                yultag (LocStack i) = YIdent (stkLoc i)
-                yultag (LocBool b) = yulBool b
-                yultag (LocWord n) = yulInt n
-                yultag t = error ("invalid tag: "++show t)
-        _ -> error "SMatch: type mismatch"
+    debug ["SMatch: ", show e , " @ " , show loc]
+
+    case normalizeLoc loc of
+        loc@(LocEmpty n) -> error ("SMatch: invalid location " ++ show loc)
+        LocSeq (loctag:rest) ->  genSwitch loctag (LocSeq rest) alts
+        -- Special case: only tag, empty payload
+        loctag -> genSwitch loctag LocUnit alts
+     where
+        genSwitch :: Location -> Location -> [Alt] -> TM [YulStmt]
+        genSwitch loctag payload alts = do
+            yulAlts <- genAlts payload payload alts
+            pure [YSwitch (yultag loctag) yulAlts Nothing]
+        yultag (LocStack i) = YIdent (stkLoc i)
+        yultag (LocBool b) = yulBool b
+        yultag (LocWord n) = yulInt n
+        yultag (LocSeq [l]) = yultag l
+        yultag t = error ("invalid tag: "++show t)
 
 genStmt (SFunction name args ret stmts) = withLocalEnv do
+    debug ["> SFunction: ", name]
     yulArgs <- placeArgs args
     yulResult <- place "_result" ret  -- TODO: special handling of unit
     yulBody <- genStmts stmts
@@ -135,7 +150,7 @@ scanStmt (SFunction name args ret stmts) = do
 scanStmt _ = pure ()
 
 genAlts :: Location -> Location -> [Alt] -> TM [(YLiteral, [YulStmt])]
-genAlts locL locR [Alt lname lstmt, Alt rname rstmt] = do
+genAlts locL locR [Alt lcon lname lstmt, Alt rcon rname rstmt] = do
     yulLStmts <- withName lname locL lstmt
     yulRStmts <- withName rname locR rstmt
     pure [(YulFalse, yulLStmts), (YulTrue, yulRStmts)]
@@ -152,27 +167,18 @@ allocVar name typ = do
     insertVar name loc
     return stmts
 
+freshStackLoc :: TM Location
+freshStackLoc = LocStack <$> freshId
+
 buildLoc :: Type -> TM Location
 buildLoc TWord = LocStack <$> freshId
 buildLoc TBool = LocStack <$> freshId
-buildLoc (TPair t1 t2) = do
-    l1 <- buildLoc t1
-    l2 <- buildLoc t2
-    return (LocPair l1 l2)
 
-buildLoc (TSum t1 t2) = do
-    -- Make sum branches share stack slots
-    tag <- LocStack <$> freshId
-    mark <- getCounter
-    l1 <- buildLoc t1
-    leftMark <- getCounter
-    setCounter mark
-    l2 <- buildLoc t2
-    rightMark <- getCounter
-    setCounter (max leftMark rightMark)
-    return (LocSum tag l1 l2)
+buildLoc t@(TSum t1 t2) = LocSeq <$> sequence (replicate (sizeOf t) freshStackLoc)
+buildLoc TUnit = pure (LocSeq [])
+buildLoc (TPair t1 t2) = LocSeq <$> sequence [buildLoc t1, buildLoc t2]
+buildLoc (TNamed n ty) = buildLoc ty
 
-buildLoc TUnit = pure LocUnit
 buildLoc t = error ("cannot build location for "++show t)
 
 coreAlloc :: Type -> TM ([YulStmt], Location)
@@ -183,8 +189,7 @@ coreAlloc t = do
 
 stackSlots :: Location -> [Int]
 stackSlots (LocStack i) = [i]
-stackSlots (LocPair l r) = stackSlots l `union` stackSlots r
-stackSlots (LocSum tag l r) = stackSlots tag `union` stackSlots l `union` stackSlots r
+stackSlots (LocSeq ls) = concatMap stackSlots ls
 stackSlots _ = []
 
 allocLoc :: Location -> [YulStmt]
@@ -208,28 +213,29 @@ loadLoc :: Location -> YulExp
 loadLoc (LocWord n) = YLit (YulNumber (fromIntegral n))
 loadLoc (LocBool b) = YLit (if b then YulTrue else YulFalse)
 loadLoc (LocStack i) = YIdent (stkLoc i)
+loadLoc (LocEmpty _) = yulPoison
 loadLoc loc = error ("cannot loadLoc "++show loc)
 
 -- copyLocs l r copies the value of r to l
 copyLocs :: HasCallStack => Location -> Location -> [YulStmt]
-copyLocs (LocStack i) r@(LocWord _) = [YAssign [stkLoc i] (loadLoc r)]
-copyLocs (LocStack i) r@(LocBool _) = [YAssign [stkLoc i] (loadLoc r)]
-copyLocs (LocStack i) r@(LocStack _) = [YAssign [stkLoc i] (loadLoc r)]
-copyLocs (LocStack _) LocUndefined = [YComment "impossible"]
-copyLocs (LocPair l1 l2) (LocPair r1 r2) = copyLocs l1 r1 ++ copyLocs l2 r2
-copyLocs (LocSum ltag l1 l2) (LocSum rtag r1 r2) =  copyLocs ltag rtag ++ (copySum rtag) where
-    copySum (LocBool b) = case b of
-        False -> copyLocs l1 r1   -- explicit inl
-        True -> copyLocs l2 r2    -- explicit inr
+copyLocs l r@(LocSeq rs) = concat $ zipWith copyLocs (flattenLoc l) (flattenLoc r)
+copyLocs l@(LocSeq ls) r = concat $ zipWith copyLocs (flattenLoc l) (flattenLoc r)
+copyLocs (LocStack i) (LocEmpty _) = []
+copyLocs (LocStack i) r = [YAssign [stkLoc i] (loadLoc r)]
 
-    copySum (LocStack i) = [YSwitch (YIdent (stkLoc i))
-                [ (YulNumber 0, copyLocs l1 r1)
-                , (YulNumber 1, copyLocs l2 r2)
-                ]
-                Nothing]
-    copySum l = error ("Invalid tag location: "++show l)
-copyLocs LocUnit LocUnit = []
+
 copyLocs l r = error $ "copy: type mismatch - LHS: " ++ show l ++ " RHS: " ++ show r
+
+flattenLoc :: Location -> [Location]
+flattenLoc (LocSeq ls) = concatMap flattenLoc ls
+flattenLoc l = [l]
+
+-- get rid of empty/nested sequences
+normalizeLoc :: Location -> Location
+normalizeLoc loc@(LocSeq ls) = case flattenLoc loc of
+    [l] -> l
+    ls' -> LocSeq ls'
+normalizeLoc loc = loc
 
 genStmts :: [Stmt] -> TM [YulStmt]
 genStmts stmts = do
@@ -265,3 +271,40 @@ isFunction _ = False
 addMain :: [Stmt] -> [Stmt]
 addMain stmts = functions ++ [SFunction "main" [] TWord other]
   where (functions, other) = span isFunction stmts
+
+class HasSize a where
+    sizeOf :: a -> Int
+
+instance HasSize Type where
+    sizeOf TWord = 1
+    sizeOf TBool = 1
+    sizeOf (TPair t1 t2) = sizeOf t1 + sizeOf t2
+    sizeOf (TSum t1 t2)  = 1 + max (sizeOf t1) (sizeOf t2)
+    sizeOf TUnit = 0
+    sizeOf (TNamed _ t) = sizeOf t
+
+instance HasSize Location where
+    sizeOf (LocEmpty n)  = n
+    sizeOf (LocSeq ls)   = sum (map sizeOf ls)
+    sizeOf l = 1
+
+-- sizeOf A + paddingSize A B  == max (sizeOf A) (sizeOf B)
+paddingSize :: (HasSize a, HasSize b) => a -> b -> Int
+paddingSize t1 t2 = max 0 (sizeOf t2 - sizeOf t1)
+
+-- sizeOf loc `paddedTo` B == max (sizeOf loc) (sizeOf B)
+paddedTo :: Location -> Type -> Location
+paddedTo loc ty = case paddingSize loc ty of
+    0 -> loc
+    n -> LocPair loc (LocEmpty n)
+
+padToSize :: Location -> Int -> Location
+padToSize loc n = case max 0 (n - sizeOf loc) of
+    0 -> loc
+    m -> LocPair loc (LocEmpty m)
+
+-- simulate LLVM "poison" value
+yulPoison :: YulExp
+yulPoison = YLit (YulNumber 911)
+-- Cannot use $poison, because Yul is strict
+-- yulPoison = YCall "$poison" []

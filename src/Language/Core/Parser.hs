@@ -3,7 +3,9 @@ import Language.Core
     ( Core(..), Contract(..),
       Alt(..),
       Arg(..),
-      Stmt(SExpr, SAlloc, SReturn, SBlock, SMatch, SFunction, SAssign, SAssembly, SRevert),
+      Con(..),
+      Stmt(SExpr, SAlloc, SReturn, SBlock, SMatch,
+           SFunction, SAssign, SAssembly, SRevert),
       Expr(..),
       Type(..) )
 import Common.LightYear
@@ -43,6 +45,9 @@ identifier = lexeme ((:) <$> startIdentChar <*> many identChar)
 integer :: Parser Integer
 integer = lexeme L.decimal
 
+int :: Parser Int
+int = fromInteger <$> integer
+
 stringLiteral :: Parser String
 stringLiteral = lexeme (char '"' *> manyTill L.charLiteral (char '"'))
 
@@ -51,6 +56,9 @@ parens = between (symbol "(") (symbol ")")
 
 braces :: Parser a -> Parser a
 braces = between (symbol "{") (symbol "}")
+
+angles :: Parser a -> Parser a
+angles = between (symbol "<") (symbol ">")
 
 commaSep :: Parser a -> Parser [a]
 commaSep p = p `sepBy` symbol ","
@@ -63,7 +71,9 @@ pPrimaryType = choice
     [ TWord <$ pKeyword "word"
     , TBool <$ pKeyword "bool"
     , TUnit <$ pKeyword "unit"
+    , TSumN <$> ( pKeyword "sum" *> parens (commaSep coreType))
     , parens coreType
+    , TNamed <$> identifier <*> braces coreType
     ]
 
 coreType :: Parser Type
@@ -93,8 +103,9 @@ pTuple = go <$> parens (commaSep coreExpr) where
 
 coreExpr :: Parser Expr
 coreExpr = choice
-    [ pKeyword "inl" *> (EInl <$> pPrimaryExpr)
-    , pKeyword "inr" *> (EInr <$> pPrimaryExpr)
+    [ pKeyword "inl" *> (EInl <$> angles coreType <*> pPrimaryExpr)
+    , pKeyword "inr" *> (EInr <$> angles coreType <*> pPrimaryExpr)
+    , pKeyword "in" *> (EInK <$> parens int <*> coreType <*> pPrimaryExpr)
     , pKeyword "fst" *> (EFst <$> pPrimaryExpr)
     , pKeyword "snd" *> (ESnd <$> pPrimaryExpr)
     , pPrimaryExpr
@@ -104,8 +115,9 @@ coreStmt :: Parser Stmt
 coreStmt = choice
     [ SAlloc <$> (pKeyword "let" *> identifier) <*> (symbol ":" *> coreType)
     , SReturn <$> (pKeyword "return" *> coreExpr)
-    , SBlock <$> between (symbol "{") (symbol "}") (many coreStmt)
-    , SMatch <$> (pKeyword "match" *> coreExpr <* pKeyword "with") <*> (symbol "{" *> many coreAlt <* symbol "}")
+    , SBlock <$> braces(many coreStmt)
+    , SMatch <$> (pKeyword "match" *> angles coreType) <*> (coreExpr <* pKeyword "with") <*> braces(many coreAlt)
+    -- , SMatch <$> (pKeyword "match" *> coreExpr <* pKeyword "with") <*> (symbol "{" *> many coreAlt <* symbol "}")
     , SFunction <$> (pKeyword "function" *> identifier) <*> (parens (commaSep coreArg)) <*> (symbol "->" *> coreType)
                 <*> (symbol "{" *> many coreStmt <* symbol "}")
     , SAssembly <$> (pKeyword "assembly" *> yulBlock)
@@ -119,13 +131,20 @@ coreArg = TArg <$> identifier <*> (symbol ":" *> coreType)
 
 coreAlt :: Parser Alt  -- FIXME: distinguish inl/inr
 coreAlt = choice
-    [ Alt <$> (pKeyword "inl" *> identifier <* symbol "=>") <*> coreStmt
-    , Alt <$> (pKeyword "inr" *> identifier <* symbol "=>") <*> coreStmt
-    ]
+    [ Alt CInl <$> (pKeyword "inl" *> identifier <* symbol "=>") <*> coreStmt
+    , Alt CInr <$> (pKeyword "inr" *> identifier <* symbol "=>") <*> coreStmt
+    , cink
+    ] where
+        cink = do
+            pKeyword "in"
+            k <- parens int
+            name <- identifier
+            symbol "=>"
+            Alt (CInK k) name <$> coreStmt
 
 coreProgram :: Parser Core
 coreProgram = sc *> (Core <$> many coreStmt) <* eof
 
 coreContract :: Parser Contract
 coreContract = sc *> (Contract <$> (pKeyword "contract" *> identifier )
-                  <*> braces(many coreStmt)) <* eof
+                  <*> braces (many coreStmt)) <* eof
