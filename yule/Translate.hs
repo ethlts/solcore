@@ -38,8 +38,8 @@ genExpr (EInr (TSum l r) e) = do
     (stmts, loc) <- genExpr e
     let loc' = loc `paddedTo` r
     pure (stmts, LocSeq[LocBool True, loc'])
-genExpr (EInl (TNamed n t) e) = genExpr (EInl t e)  -- FIXME: compression
-genExpr (EInr (TNamed n t) e) = genExpr (EInr t e)  -- FIXME: compression
+genExpr (EInl (TNamed n t) e) = genExpr (EInl t e)
+genExpr (EInr (TNamed n t) e) = genExpr (EInr t e)
 
 genExpr (EInK k (TSumN ts) e) = do
     (stmts, loc) <- genExpr e
@@ -72,17 +72,6 @@ flattenLhs (LocStack i) = [stkLoc i]
 flattenLhs (LocSeq ls) = concatMap flattenLhs ls
 flattenLhs l = error ("flattenLhs: not implemented for "++show l)
 
-
-maxList :: (Show a, Eq a) => [a] -> [a] -> [a]
-maxList [] ys = ys
-maxList xs [] = xs
-maxList (x:xs) (y:ys) | x == y = x : maxList xs ys
-maxList xs ys = error ("maxList: mismatch "++show xs++" "++show ys)
-
-joinLocs :: Location -> Location -> [Location]
-joinLocs l1 l2 | l1 == l2 = [l1]
-
-
 genStmtWithComment :: Stmt -> TM [YulStmt]
 genStmtWithComment (SComment c) = pure [YComment c]
 genStmtWithComment s = do
@@ -105,8 +94,7 @@ genStmt (SBlock stmts) = withLocalEnv do genStmts stmts
 
 genStmt (SMatch sty e alts) = do
     (stmts, scrutineeLoc) <- genExpr e
-    debug ["> SMatch: ", show e , ":", show sty, " @ " , show scrutineeLoc]
-
+    -- debug ["> SMatch: ", show e , ":", show sty, " @ " , show scrutineeLoc]
     case normalizeLoc scrutineeLoc of
         loc@(LocEmpty n) -> error ("SMatch: invalid location " ++ show loc)
         LocSeq (loctag:rest) ->  genSwitch loctag (LocSeq rest) alts
@@ -115,13 +103,9 @@ genStmt (SMatch sty e alts) = do
      where
         genSwitch :: Location -> Location -> [Alt] -> TM [YulStmt]
         genSwitch tag payload alts = do
-            yulAlts <- if isBinSum sty
-                       then genBinAlts payload alts
-                       else genNAlts payload alts
+            yulAlts <- genNAlts payload alts
             pure [YSwitch (loadLoc tag) yulAlts Nothing]
-        isBinSum (TSum _ _) = True
-        isBinSum (TNamed _ t) = isBinSum t
-        isBinSum _ = False
+
 genStmt (SFunction name args ret stmts) = withLocalEnv do
     debug ["> SFunction: ", name]
     yulArgs <- placeArgs args
