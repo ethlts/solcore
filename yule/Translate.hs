@@ -123,6 +123,7 @@ genStmt (SFunction name args ret stmts) = withLocalEnv do
             insertVar name loc
             return (flattenLhs loc)
 
+genStmt (SExpr e) = fst <$> genExpr e
 genStmt (SRevert s) = pure
   [ YExp $ YCall "mstore" [yulInt 0, YLit (YulString s)]
   , YExp $ YCall "revert" [yulInt 0, yulInt (length s)]
