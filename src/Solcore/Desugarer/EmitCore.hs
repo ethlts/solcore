@@ -222,7 +222,9 @@ emitExp (Var x) = do
     case Map.lookup (idName x) subst of
         Just e -> pure (e, [])
         Nothing -> pure (Core.EVar (unwrapId x), [])
-emitExp (Call Nothing f as) = do
+emitExp (Call Nothing f as)
+   | unwrapId f == "revert" = pure (Core.EUnit, [Core.SRevert ""] )
+   | otherwise = do
     (coreArgs, codes) <- unzip <$> mapM emitExp as
     let call =  Core.ECall (unwrapId f) coreArgs
     pure (call, concat codes)
