@@ -91,8 +91,10 @@ defunM cunit@(CompUnit imps decls)
       let 
         go (n,pdefs) dt fd = (n, (pdefs, dt, fd))
         mdefs' = zipWith3 go mdef dts daps
+        daps' = TFunDef <$> daps
+        dts' = TDataDef <$> dts 
       decls' <- updateDecls mdefs' decls
-      pure (CompUnit imps decls')
+      pure (CompUnit imps (dts' ++ daps' ++ decls'))
 
 signatureToId :: Signature Id -> Id 
 signatureToId sig 
@@ -200,7 +202,7 @@ createApplySignature (v@(Name n), pdefs) dt
       sig <- askSig v 
       lts <- mapM (lamParam (sigParams sig)) pos 
       lp <- mkParam dt
-      let args' = lp : (sigParams sig \\ lts)
+      let args' = lp : lts
       pure (lp, Signature n' [] args' (Just t))
 
 lamParam :: [Param Id] -> Int -> DefunM (Param Id) 

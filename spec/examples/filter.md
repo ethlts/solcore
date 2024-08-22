@@ -313,7 +313,147 @@ function foo0 (y : Word) -> List[Word] {
 function foo1 () -> List[Word] {
    return apply_filte(Lam_filter01, list1());
 }
-function foo2 (p : Word -> Bool, q : Word -> Bool) -> List[Word] {
+function foo2 (p : Lam_Filter, q : Lam_Filter) -> List[Word] {
    return apply_filte(Lam_filter02[p, q], list1())
 }
 ```
+
+Using type classes
+------------------
+
+Daniel suggested an approach which uses a type class named 
+`Invokable`:
+
+```
+class self:Invokable[args,retvals] {
+  function invoke(f:self, x:args) -> retvals;
+}
+```
+
+Using this approach, function `filter` will represent the 
+`f : a -> Bool` parameter as a type which needs to be 
+instance of the `Invokable` class: 
+
+```
+forall F:Invokable('a,bool) . function filter (f:F, xs:List('a)) {
+  match xs {
+  | Nil => return Nil ;
+  | Cons[y,ys] => 
+    match Invokable.invoke(f, y) {
+    | False => return filter(f,ys); 
+    | True => return Cons[y,filter(f,ys)];
+    };
+  };
+}
+```
+
+The call of `f` function is replaced by a call to the function `invoke`.
+Next, the uses of filter are properly updated to reflect this program
+transformation.
+
+First, let's consider the original version of function `foo0`
+
+```
+function foo0(y) {
+  return filter((lam (x){ return eq(x,y); }), list1());
+}
+```
+
+this function could be denoted by a datatype, an instance 
+for `Invokable` for this newly created type and the corresponding 
+changes on `foo0` body as follows: 
+
+```
+data Filter_Lam_Foo0 = FilterLamFoo0[Word] 
+
+instance Filter_Lam_Foo0 : Invokable[Word,Bool] {
+  function invoke (f,x) {
+    match f {
+    | Filter_Lam_Foo0[y] => return eq(x,y);
+    };
+  }
+}
+
+function foo0(y) {
+  return filter (Filter_Lam_Foo0[y], list1());
+}
+```
+
+Next, we consider the changes for function `foo1`, which 
+is simpler, since it does not involve any capture in the 
+anonymous function. Again, we start by repeating the 
+definition of `foo1`.
+
+```
+function foo1() {
+  return filter((lam (x){ return eq(x,1); }), list1());
+}
+```
+Changes to function `foo1` and the created datatype and 
+its corresponding instance are defined as follows.
+
+```
+data Filter_Lam_Foo1 = Filter_Lam_Foo1
+
+instance Filter_Lam_Foo1 : Invokable[Word,Bool] {
+  function invoke(f,x) {
+    match f {
+    | Filter_Lam_Foo1 => return eq(x,1);
+    }; 
+  }
+}
+
+function foo1() {
+  return filter(Filter_Lam_Foo1, list1());
+}
+```
+
+As a last example, let's take a look in function `foo2`
+which needs a recursive data type constructor in 
+defunctionalization. 
+
+```
+function foo2(p,q) {
+  return filter(lam (x) { return and(p(x), q(x)) ; }
+                , list1());
+}
+
+```
+
+The desugaring of the function `foo2` will produce the following 
+instances and datatype.
+
+```
+data Filter_Lam_Foo2[p,q] = Filter_Lam_Foo2[p,q] 
+
+instance [p:Invokable(a,bool), q:Invokable(a,bool)] => Filter_Lam_Foo2[p,q] : Invokable(a,bool) {
+    function invoke(f:Lambda_foo2, x:a) -> bool {
+        match f {
+        | Lambda_foo2[p,q] => 
+                return and(Invokable.invoke(p,x), Invokable.invoke(q,x));
+        };
+    }
+}
+
+forall p:Invocable(a,bool), q:Invocable(a,bool) .
+function foo2(p,q) {
+  return filter(Filter_Lam_Foo2[p,q], list1());
+}
+
+instance (a -> b):Invokable(a, b) {
+    function invoke(f : a -> b, x : a) -> b {
+        return f(x);
+    }
+}
+```
+
+A final question is how to deal with sum types. 
+
+
+
+Closure conversion
+------------------
+
+Another way of dealing with anonymous functions is 
+**closure conversion**, which packs the code of a 
+lambda together with its environment.
