@@ -185,8 +185,6 @@ tcInstance (Instance ctx n ts t funs)
       let ts1 = map (\ (Forall _ (_ :=> t)) -> t) schs 
           applyT :: Subst -> Ty -> Ty 
           applyT s t = apply s t
-      liftIO $ mapM_ (putStrLn . pretty) ts'
-      liftIO $ mapM_ (putStrLn . pretty) ts1
       s <- unifyTypes ts' ts1
       pure $ everywhere (mkT (applyT s)) $ Instance ctx n ts t funs'
 
@@ -404,7 +402,6 @@ checkInstances = mapM_ checkInstance
 checkInstance :: Instance Name -> TcM ()
 checkInstance (Instance ctx n ts t funs)
   = do
-      liftIO $ putStrLn "Oiii"
       let ipred = InCls n t ts
       -- checking the coverage condition 
       insts <- askInstEnv n `wrapError` ipred
