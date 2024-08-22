@@ -444,6 +444,7 @@ instance CollectLam (Stmt Id) where
   collectLam (Return e) = collectLam e 
   collectLam (Match es eqns)
     = Map.unionWith (Map.unionWith (union)) (collectLam es) (collectLam eqns)
+  collectLam _ = Map.empty
 
 instance CollectLam (Equation Id) where 
   collectLam (_, bd) = collectLam bd 
