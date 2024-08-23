@@ -177,16 +177,34 @@ tcField (Field n t _)
 
 -- type checking instance body 
 
+-- FIXME 
+-- problem here is to build a renaming to make all types 
+-- look nice
+
 tcInstance :: Instance Name -> TcM (Instance Id)
 tcInstance (Instance ctx n ts t funs) 
   = do
-      (funs', _, ts') <- unzip3 <$> mapM tcFunDef funs
-      schs <- mapM (askEnv . sigName . funSignature) funs 
-      let ts1 = map (\ (Forall _ (_ :=> t)) -> t) schs 
+      (funs', pss', ts') <- unzip3 <$> mapM tcFunDef funs
+      schs <- mapM (askEnv . sigName . funSignature) funs' 
+      let 
+          qts = zipWith (:=>) pss' ts' 
+          ts1 = map (\ (Forall _ (_ :=> t)) -> t) schs
           applyT :: Subst -> Ty -> Ty 
           applyT s t = apply s t
-      s <- unifyTypes ts' ts1
-      pure $ everywhere (mkT (applyT s)) $ Instance ctx n ts t funs'
+          s' = renameSubst ts' 
+      unifyTypes ts' ts1
+      let
+        ctx' = apply s' ctx 
+        ts' = apply s' ts 
+        t' = apply s' t 
+      pure $ Instance ctx' n ts' t' funs'
+ 
+renameSubst :: [Ty] -> Subst 
+renameSubst ts 
+  = Subst (zip vs' vs) 
+    where 
+      vs = map TyVar (fv ts)
+      vs' = map TVar namePool
 
 tcClass :: Class Name -> TcM (Class Id)
 tcClass (Class ctx n vs v sigs) 
@@ -245,7 +263,8 @@ tcFunDef d@(FunDef sig bd)
                            (sigContext sig) 
                            params' 
                            (Just rTy)
-      pure (FunDef sig' bd', ps ++ ps1, t1)
+      ps2 <- reduceContext (ps ++ ps1)
+      pure (FunDef sig' bd', ps2, apply s t1)
 
 scanFun :: FunDef Name -> TcM (FunDef Name)
 scanFun (FunDef sig bd)
