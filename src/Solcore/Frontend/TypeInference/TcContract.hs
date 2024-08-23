@@ -177,27 +177,20 @@ tcField (Field n t _)
 
 -- type checking instance body 
 
--- FIXME 
--- problem here is to build a renaming to make all types 
--- look nice
-
 tcInstance :: Instance Name -> TcM (Instance Id)
 tcInstance (Instance ctx n ts t funs) 
   = do
       (funs', pss', ts') <- unzip3 <$> mapM tcFunDef funs
       schs <- mapM (askEnv . sigName . funSignature) funs' 
       let 
-          qts = zipWith (:=>) pss' ts' 
           ts1 = map (\ (Forall _ (_ :=> t)) -> t) schs
-          applyT :: Subst -> Ty -> Ty 
-          applyT s t = apply s t
           s' = renameSubst ts' 
       unifyTypes ts' ts1
-      let
-        ctx' = apply s' ctx 
-        ts' = apply s' ts 
-        t' = apply s' t 
-      pure $ Instance ctx' n ts' t' funs'
+      pure $ Instance (apply s' ctx) 
+                      n
+                      (apply s' ts)
+                      (apply s' t)
+                      funs'
  
 renameSubst :: [Ty] -> Subst 
 renameSubst ts 
@@ -205,6 +198,22 @@ renameSubst ts
     where 
       vs = map TyVar (fv ts)
       vs' = map TVar namePool
+
+renameSubst1 :: [Ty] -> Subst 
+renameSubst1 ts 
+  = Subst (zip vs vs') 
+    where 
+      vs = fv ts
+      vs' = map (TyVar . TVar) namePool
+
+
+
+instanceTypes :: Instance Id -> [Ty]
+instanceTypes (Instance ctx _ ts t funs) 
+  = foldr union [] [concatMap ctxTypes ctx, t : ts]  
+    where 
+      ctxTypes (InCls _ x xs) = x : xs  
+
 
 tcClass :: Class Name -> TcM (Class Id)
 tcClass (Class ctx n vs v sigs) 
