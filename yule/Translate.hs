@@ -120,9 +120,12 @@ genStmt (SMatch t e alts) = do
 genStmt (SFunction name args ret stmts) = withLocalEnv do
     debug ["> SFunction: ", name]
     yulArgs <- placeArgs args
-    yulResult <- place "_result" ret  -- TODO: special handling of unit
+    yreturns <- case ret of -- FIXME: temp hack for main
+        TUnit | name == "main" -> YReturns <$> place "_result" TWord
+              | otherwise-> pure YNoReturn
+        _  -> YReturns <$> place "_result" ret
     yulBody <- genStmts stmts
-    return [YFun (fromString name) yulArgs (YReturns yulResult) yulBody]
+    return [YFun (fromString name) yulArgs yreturns yulBody]
     where
         placeArgs :: [Arg] -> TM [Name]
         placeArgs as = concat <$> mapM placeArg as
@@ -138,6 +141,10 @@ genStmt (SRevert s) = pure
   [ YExp $ YCall "mstore" [yulInt 0, YLit (YulString s)]
   , YExp $ YCall "revert" [yulInt 0, yulInt (length s)]
   ]
+
+genStmt (SExpr e) = do
+    (stmts, loc) <- genExpr e
+    pure stmts
 
 genStmt e = error $ "genStmt unimplemented for: " ++ show e
 
