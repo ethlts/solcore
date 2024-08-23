@@ -184,13 +184,16 @@ tcInstance (Instance ctx n ts t funs)
       schs <- mapM (askEnv . sigName . funSignature) funs' 
       let 
           ts1 = map (\ (Forall _ (_ :=> t)) -> t) schs
-          s' = renameSubst ts' 
+          s' = renameSubst1 ts'
+          applyI :: Subst -> Id -> Id 
+          applyI s x = apply s x
       unifyTypes ts' ts1
+      liftIO $ putStrLn $ pretty s'
       pure $ Instance (apply s' ctx) 
                       n
                       (apply s' ts)
                       (apply s' t)
-                      funs'
+                      (everywhere (mkT (applyI s')) funs')
  
 renameSubst :: [Ty] -> Subst 
 renameSubst ts 
@@ -395,16 +398,24 @@ checkClasses = mapM_ checkClass
 
 checkClass :: Class Name -> TcM ()
 checkClass (Class ps n vs v sigs) 
-  = mapM_ checkSignature sigs 
+  = do 
+      let p = InCls n (TyVar v) (TyVar <$> vs)
+          ms' = map sigName sigs 
+      addClassInfo n (length vs) ms' p
+      mapM_ (checkSignature p) sigs 
     where
-      checkSignature sig@(Signature f ctx ps mt)
-        = do 
+      checkSignature p sig@(Signature f ctx ps mt)
+        = do
             pst <- mapM tyParam ps
             t' <- maybe freshTyVar pure mt 
             unless (null ctx && v `elem` fv (funtype pst t'))
                    (throwError $ "invalid class declaration: " ++ unName n)
-            addClassMethod (InCls n (TyVar v) (TyVar <$> vs))
-                           sig 
+            addClassMethod p sig 
+
+addClassInfo :: Name -> Arity -> [Method] -> Pred -> TcM ()
+addClassInfo n ar ms p
+  = modify (\ env -> 
+      env{ classTable = Map.insert n (ar, ms, p) (classTable env)})
 
 addClassMethod :: Pred -> Signature Name -> TcM ()
 addClassMethod p@(InCls _ _ _) (Signature f _ ps t) 
@@ -516,3 +527,15 @@ checkMeasure ps c
     else throwError $ unlines [ "Instance "
                               , pretty c
                               , "does not satisfy the Patterson conditions."]
+
+-- Instances for elaboration 
+
+instance HasType (FunDef Id) where 
+  apply s (FunDef sig bd)
+    = FunDef (apply s sig) (apply s bd)
+  fv (FunDef sig bd)
+    = fv sig `union` fv bd
+
+instance HasType (Instance Id) where 
+  apply s = undefined
+  fv _ = []

@@ -87,6 +87,7 @@ data Signature a
     , sigReturn :: Maybe Ty 
     } deriving (Eq, Ord, Show, Data, Typeable)
 
+
 data Instance a 
   = Instance {
       instContext :: [Pred]

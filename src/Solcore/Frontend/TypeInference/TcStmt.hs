@@ -343,6 +343,64 @@ tcYulDefault Nothing = pure ()
 mword :: Scheme
 mword = monotype word 
 
+instance HasType (Exp Id) where 
+  apply s (Var v) = Var (apply s v)
+  apply s (Con n es)
+    = Con (apply s n) (apply s es)
+  apply s (FieldAccess e v)
+    = FieldAccess (apply s e) (apply s v)
+  apply s (Call m v es)
+    = Call (apply s <$> m) (apply s v) (apply s es)
+  apply s (Lam ps bd mt)
+    = Lam (apply s ps) (apply s bd) (apply s <$> mt)
+
+  fv (Var v) = fv v
+  fv (Con n es) 
+    = fv n `union` fv es 
+  fv (FieldAccess e v)
+    = fv e `union` fv v
+  fv (Call m v es)
+    = maybe [] fv m `union` fv v `union` fv es 
+  fv (Lam ps bd mt)
+    = fv ps `union` fv bd `union` maybe [] fv mt
+
+instance HasType (Stmt Id) where 
+  apply s (e1 := e2) 
+    = (apply s e1) := (apply s e2)
+  apply s (Let v mt me)
+    = Let (apply s v) 
+          (apply s <$> mt)
+          (apply s <$> me)
+  apply s (StmtExp e)
+    = StmtExp (apply s e)
+  apply s (Return e)
+    = Return (apply s e)
+  apply s (Match es eqns)
+    = Match (apply s es) (apply s eqns)
+  apply _ s
+    = s
+  
+  fv (e1 := e2) 
+    = fv e1 `union` fv e2 
+  fv (Let v mt me)
+    = fv v `union` (maybe [] fv mt) 
+           `union` (maybe [] fv me)
+  fv (StmtExp e) = fv e
+  fv (Return e) = fv e
+  fv (Match es eqns) 
+    = fv es `union` fv eqns
+  fv (Asm blk) = []
+
+instance HasType (Pat Id) where 
+  apply s (PVar v) = PVar (apply s v)
+  apply s (PCon v ps)
+    = PCon (apply s v) (apply s ps)
+  apply _ p = p 
+
+  fv (PVar v) = fv v
+  fv (PCon v ps) = fv v `union` fv ps
+
+
 -- errors 
 
 invalidYulType :: Name -> TcM a 
