@@ -61,6 +61,7 @@ instance ReplaceWildcard (Stmt Id) where
     = Return <$> replace e
   replace (Match es eqns)
     = Match <$> replace es <*> replace eqns
+  replace s = pure s 
 
 instance ReplaceWildcard (FunDef Id) where 
   replace (FunDef sig bd)

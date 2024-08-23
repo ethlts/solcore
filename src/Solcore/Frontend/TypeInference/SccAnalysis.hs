@@ -11,6 +11,8 @@ import Data.List
 import Data.Map (Map)
 import qualified Data.Map as Map 
 
+import Language.Yul
+
 import Solcore.Frontend.Syntax.Contract
 import Solcore.Frontend.Syntax.Name 
 import Solcore.Frontend.Syntax.Stmt
@@ -191,6 +193,26 @@ instance FreeVars (Stmt Name) where
   fv (StmtExp e) = fv e 
   fv (Return e) = fv e 
   fv (Match es eqns) = fv es `union` fv eqns 
+  fv (Asm blk) = fv blk
+
+instance FreeVars YulStmt where
+  fv (YBlock blk) = fv blk 
+  fv (YFun n args rets ss)
+    = fv ss \\ (n : args `union` (maybe [] id rets))
+  fv (YLet ns (Just e)) = fv e \\ ns 
+  fv (YIf e blk) = fv e `union` fv blk 
+  fv (YSwitch e cs d) 
+    = fv e `union` fv cs' `union` (maybe [] fv d)
+      where cs' = map snd cs
+  fv (YFor is e bd up) 
+    = fv e `union` fv bd `union` fv up \\ fv is 
+  fv (YExp e) = fv e 
+  fv _ = []
+
+instance FreeVars YulExp where 
+  fv (YCall n es) = n : fv es 
+  fv (YIdent n) = [n]
+  fv _ = []
 
 instance FreeVars (FunDef Name) where 
   fv (FunDef sig ss) = fv ss \\ ps 
