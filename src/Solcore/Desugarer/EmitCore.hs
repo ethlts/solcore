@@ -8,6 +8,7 @@ import Control.Monad.State
 import Data.List(intercalate)
 import qualified Data.Map as Map
 import Data.Maybe(fromMaybe)
+import GHC.Stack( HasCallStack )
 
 import Solcore.Frontend.Pretty.SolcorePretty
 import Solcore.Frontend.Syntax
@@ -256,6 +257,7 @@ emitStmt (Let (Id name ty) mty mexp ) = do
         Nothing -> return alloc
 
 emitStmt s@(Match [scrutinee] alts) = emitMatch scrutinee alts
+emitStmt (Asm ys) = pure [Core.SAssembly ys]
 emitStmt s = errors ["emitStmt not implemented for: ", pretty s, "\n", show s]
 
 emitStmts :: [Stmt Id] -> EM [Core.Stmt]
@@ -415,7 +417,7 @@ writeln :: MonadIO m => String -> m ()
 writeln = liftIO . putStrLn
 writes :: MonadIO m => [String] -> m ()
 writes = writeln . concat
-errors :: [String] -> a
+errors :: HasCallStack => [String] -> a
 errors = error . concat
 
 debug :: [String] -> EM ()

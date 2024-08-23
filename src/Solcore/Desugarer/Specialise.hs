@@ -9,6 +9,7 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Data.List(intercalate)
 import qualified Data.Map as Map
+import GHC.Stack
 import Solcore.Frontend.Pretty.SolcorePretty
 import Solcore.Frontend.Syntax
 import Solcore.Frontend.TypeInference.Id ( Id(..) )
@@ -69,6 +70,8 @@ writeln :: String -> SM ()
 writeln = whenDebug . liftIO  . putStrLn
 writes :: [String] -> SM ()
 writes = writeln . concat
+
+errors :: HasCallStack => [String] -> SM a
 errors = error . concat
 
 panics :: MonadIO m => [String] -> m a
@@ -339,6 +342,7 @@ specStmt (StmtExp e) = do
   e' <- specExp e ty
   return $ StmtExp e'
 
+specStmt (Asm ys) = pure (Asm ys)
 specStmt stmt = errors ["specStmt not implemented for: ", show stmt]
 
 specMatch :: [Exp Id] -> [([Pat Id], [Stmt Id])] -> SM (Stmt Id)
