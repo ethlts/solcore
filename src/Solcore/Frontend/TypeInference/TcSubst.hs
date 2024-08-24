@@ -84,7 +84,8 @@ instance HasType Scheme where
     = fv t \\ vs
 
 instance HasType a => HasType (Signature a) where
-  apply s (Signature n c p r) = Signature n (apply s c) (apply s p) (apply s r)
+  apply s (Signature n c p r) 
+    = Signature n (apply s c) (apply s p) (apply s r)
   fv (Signature _ c p r) = fv (c,p,r)
 
 instance HasType a => HasType (Param a) where

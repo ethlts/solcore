@@ -165,7 +165,6 @@ tcDecl (CDataDecl d) = pure (CDataDecl d)
 tcField :: Field Name -> TcM (Field Id)
 tcField d@(Field n t (Just e)) 
   = do
-      -- FIXME: Should we return the constraints?
       (e', ps', t') <- tcExp e 
       s <- mgu t t' `wrapError` d 
       extEnv n (monotype t)
@@ -185,16 +184,10 @@ tcInstance (Instance ctx n ts t funs)
       let 
           ts1 = map (\ (Forall _ (_ :=> t)) -> t) schs
           s' = renameSubst1 ts'
-          applyI :: Subst -> Id -> Id 
-          applyI s x = apply s x
-      unifyTypes ts' ts1
-      liftIO $ putStrLn $ pretty s'
-      pure $ Instance (apply s' ctx) 
-                      n
-                      (apply s' ts)
-                      (apply s' t)
-                      (everywhere (mkT (applyI s')) funs')
- 
+      s <- unifyTypes ts' ts1
+      let ist = apply s' (Instance ctx n ts t funs')
+      pure ist
+
 renameSubst :: [Ty] -> Subst 
 renameSubst ts 
   = Subst (zip vs' vs) 
@@ -276,7 +269,7 @@ tcFunDef d@(FunDef sig bd)
                            params' 
                            (Just rTy)
       ps2 <- reduceContext (ps ++ ps1)
-      pure (FunDef sig' bd', ps2, apply s t1)
+      pure (apply s $ FunDef sig' bd', apply s ps2, apply s t1)
 
 scanFun :: FunDef Name -> TcM (FunDef Name)
 scanFun (FunDef sig bd)
@@ -537,5 +530,7 @@ instance HasType (FunDef Id) where
     = fv sig `union` fv bd
 
 instance HasType (Instance Id) where 
-  apply s = undefined
-  fv _ = []
+  apply s (Instance ctx n ts t funs) 
+    = Instance (apply s ctx) n (apply s ts) (apply s t) (apply s funs)
+  fv (Instance ctx n ts t funs) 
+    = fv ctx `union` fv (t : ts) `union` fv funs

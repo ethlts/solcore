@@ -353,6 +353,7 @@ instance HasType (Exp Id) where
     = Call (apply s <$> m) (apply s v) (apply s es)
   apply s (Lam ps bd mt)
     = Lam (apply s ps) (apply s bd) (apply s <$> mt)
+  apply _ e = e
 
   fv (Var v) = fv v
   fv (Con n es) 
