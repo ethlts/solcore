@@ -31,6 +31,7 @@ match (TyCon n ts) (TyCon n' ts')
             sl <- match t t' 
             sr <- go ts ts' 
             merge sl sr
+      go _ _ = typesMatchListErr ts ts'
 match (TyVar v) t = pure (v +-> t)
 match t1 t2 = typesNotMatch t1 t2
 
