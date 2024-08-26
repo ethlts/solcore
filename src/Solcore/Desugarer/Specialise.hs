@@ -84,6 +84,9 @@ nopanics msgs = do
     liftIO $ putStrLn $ concat msgs
     liftIO exitFailure
 
+prettys :: Pretty a => [a] -> String
+prettys = render . brackets . commaSep . map ppr
+
 -- | `withLocalState` runs a computation with a local state
 -- local changes are discarded, with the exception of the `specTable`
 withLocalState :: SM a -> SM a
@@ -240,7 +243,7 @@ specCall i args ty = do
   -- writes ["> specCall: ", show i, show args, " : ", pretty ty]
   i' <- atCurrentSubst i
   ty' <- atCurrentSubst ty
-  guardSimpleType ty'
+  -- guardSimpleType ty'
   let name = idName i'
   let argTypes = map typeOfTcExp args
   let typedArgs = zip args argTypes
@@ -250,13 +253,22 @@ specCall i args ty = do
   mres <- lookupResolution name funType
   case mres of
     Just (fd, ty, phi) -> do
-      writes ["resolution: ", show name, " : ", pretty ty, "@", pretty phi]
+      writes ["< resolution: ", show name, " : ", pretty ty, "@", pretty phi]
       extSpSubst phi
+      -- now default all remaining free type vars to Word
+      ty' <- atCurrentSubst ty
+      let freeTvs = fv ty'
+      let defaultSubst = Subst $ map (,word) freeTvs
+      unless (null freeTvs) $ debug  ["!! specCall: ", show name, prettys args,
+         " defaulting ", prettys freeTvs, " to Word"]
+      extSpSubst defaultSubst
       name' <- specFunDef fd
-      -- writes ["< specCall: ", pretty name']
-      return (Id name' ty', args')
+      ty' <- atCurrentSubst ty
+      debug ["< specCall: ", pretty name']
+      args'' <- atCurrentSubst args'
+      return (Id name' ty', args'')
     Nothing -> do
-      writes ["! specCall: no resolution found for ", show name, " : ", pretty funType]
+      debug ["! specCall: no resolution found for ", show name, " : ", pretty funType]
       return (i, args')
   where
     guardSimpleType :: Ty -> SM ()
@@ -307,9 +319,15 @@ specStmt stmt@(Return e) = do
   subst <- getSpSubst
   let ty = typeOfTcExp e
   let ty' = apply subst ty
-  ensureSimple ty' stmt subst
+  -- now default all remaining free type vars to Word
+  let freeTvs = fv ty'
+  let defaultSubst = Subst $ map (,word) freeTvs
+  unless (null freeTvs) $ debug  ["!! specStmt: ", pretty stmt, " : ", pretty ty, " ~> ", pretty ty',
+         " defaulting ", show freeTvs, " to Word"]
+  let ty'' = apply defaultSubst ty'
+  -- ensureSimple ty' stmt subst
   -- writes ["> specExp (Return): ", pretty e," : ", pretty ty, " ~> ", pretty ty']
-  e' <- specExp e ty'
+  e' <- specExp e ty''
   -- writes ["< specExp (Return): ", pretty e']
   return $ Return e'
 
