@@ -49,7 +49,9 @@ genExpr (ECall name args) = do
     funInfo <- lookupFun name
     (resultCode, resultLoc) <- coreAlloc (fun_result funInfo)
     let callExpr = YCall (fromString name) yulArgs
-    let callCode = [YAssign (flattenLhs resultLoc) callExpr]
+    let callCode = case resultLoc of  -- handle void functions
+            LocUnit -> [YExp callExpr]
+            _ -> [YAssign (flattenLhs resultLoc) callExpr]
     pure (argsCode++resultCode++callCode, resultLoc)
 genExpr e = error ("genExpr: not implemented for "++show e)
 
@@ -91,9 +93,12 @@ genStmt (SAssign name expr) = coreAssign name expr
 
 genStmt (SReturn expr) = do
     (stmts, loc) <- genExpr expr
-    resultLoc <- lookupVar "_result"
-    let stmts' = copyLocs resultLoc loc
-    pure (stmts ++ stmts')
+    case loc of
+        LocUnit -> pure (stmts ++ [YLeave])
+        _ -> do
+            resultLoc <- lookupVar "_result"
+            let stmts' = copyLocs resultLoc loc
+            pure (stmts ++ stmts' ++ [YLeave])
 
 genStmt (SBlock stmts) = withLocalEnv do genStmts stmts
 
@@ -118,9 +123,9 @@ genStmt (SMatch t e alts) = do
         yultag t = error ("invalid tag: "++show t)
 
 genStmt (SFunction name args ret stmts) = withLocalEnv do
-    debug ["> SFunction: ", name]
+    debug ["> SFunction: ", name, " ", show args, " -> ", show ret]
     yulArgs <- placeArgs args
-    yreturns <- case ret of -- FIXME: temp hack for main
+    yreturns <- case stripTypeName ret of -- FIXME: temp hack for main
         TUnit | name == "main" -> YReturns <$> place "_result" TWord
               | otherwise-> pure YNoReturn
         _  -> YReturns <$> place "_result" ret

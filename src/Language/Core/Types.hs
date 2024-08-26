@@ -10,3 +10,7 @@ data Type
     | TUnit
     | TNamed String Type  -- named type, e.g. Option{unit + word}
     deriving (Show)
+
+stripTypeName :: Type -> Type
+stripTypeName (TNamed _ t) = t
+stripTypeName t = t
