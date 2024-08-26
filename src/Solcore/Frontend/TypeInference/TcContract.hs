@@ -400,9 +400,10 @@ checkClass (Class ps n vs v sigs)
       checkSignature p sig@(Signature f ctx ps mt)
         = do
             pst <- mapM tyParam ps
-            t' <- maybe freshTyVar pure mt 
-            unless (null ctx && v `elem` fv (funtype pst t'))
-                   (throwError $ "invalid class declaration: " ++ unName n)
+            t' <- maybe freshTyVar pure mt
+            let ft = funtype pst t' 
+            unless (null ctx && v `elem` fv ft)
+                   (signatureError n v sig ft)
             addClassMethod p sig 
 
 addClassInfo :: Name -> Arity -> [Method] -> Pred -> TcM ()
@@ -520,6 +521,25 @@ checkMeasure ps c
     else throwError $ unlines [ "Instance "
                               , pretty c
                               , "does not satisfy the Patterson conditions."]
+
+-- error for class definitions 
+
+signatureError :: Name -> Tyvar -> Signature Name -> Ty -> TcM ()
+signatureError n v (Signature f ctx _ _) t
+  | null ctx = throwError $ unlines ["Impossible! Class context is empty in function:" 
+                                    , pretty f
+                                    , "which is a membre of the class declaration:"
+                                    , pretty n 
+                                    ]
+  | v `notElem` fv t = throwError $ unlines ["Main class type variable"
+                                            , pretty v
+                                            , "does not occur in type"
+                                            , pretty t 
+                                            , "which is the defined type for function"
+                                            , pretty f 
+                                            , "that is a member of class definition"
+                                            , pretty n 
+                                            ]
 
 -- Instances for elaboration 
 

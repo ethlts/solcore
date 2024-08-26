@@ -214,6 +214,7 @@ fifthCase [] _ []
   = throwError "Panic! Impossible --- fifthCase"
 fifthCase es@(_ : _) d eqns@(_ : eqs)
   = do
+      liftIO $ putStrLn "Quinto!"
       let eqnss = reverse $ splits isConstr eqns
       case unsnoc eqnss of
         Just (eqs, eq) -> do 
@@ -236,8 +237,8 @@ generateFunction :: [Exp Id] -> [Stmt Id] -> Equations Id -> CompilerM [Stmt Id]
 generateFunction es d eqn 
   = do
       n <- newFunName
-      ss <- matchCompilerM es d eqn 
-      let fd = FunDef (Signature n [] [] Nothing) ss 
+      ss <- matchCompilerM es d eqn
+      let fd = FunDef (Signature n [] [] (Just (blockType ss))) ss
       tell [fd]
       v <- (TyVar . TVar) <$> freshName 
       return [StmtExp $ generateCall (Id n v) []] 
@@ -402,4 +403,41 @@ splits _ [] = []
 splits p xs = (ys ++ ws) : splits p ts 
   where 
     (ys, zs) = span p xs 
-    (ws, ts) = span (not . p) zs 
+    (ws, ts) = span (not . p) zs
+
+-- auxiliar functions which could be 
+-- replaced by Trees that grow 
+
+blockType :: [Stmt Id] -> Ty 
+blockType [] = unit 
+blockType ss = stmtType (last ss)
+
+stmtType :: Stmt Id -> Ty 
+stmtType (Return e) 
+  = expType e 
+stmtType (StmtExp e)
+  = expType e 
+stmtType (Match _ eqns)
+  = eqnsType eqns 
+stmtType _ = unit 
+
+expType :: Exp Id -> Ty 
+expType (Var (Id _ t)) = t 
+expType (Con (Id _ t) _) 
+  = snd (splitTy t)
+expType (FieldAccess _ (Id _ t)) 
+  = t
+expType (Call _ (Id _ t) _)
+  = snd (splitTy t)
+expType (Lam _ _ (Just t)) 
+  = t 
+expType (Lit l) = litType l 
+
+litType :: Literal -> Ty 
+litType _ = word 
+
+eqnsType :: Equations Id -> Ty
+eqnsType [] = unit 
+eqnsType ((_ , ss) : _) = blockType ss
+
+
