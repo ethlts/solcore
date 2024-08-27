@@ -127,9 +127,10 @@ instance Compile (Stmt Id) where
 
 matchCompilerM :: [Exp Id] -> [Stmt Id] -> Equations Id -> CompilerM [Stmt Id] 
 -- first case: No remaining equations. We return the default body.
-matchCompilerM _ d [] = return d
+matchCompilerM _ d [] = do 
+  return d
 -- second case: no scrutinee. Result is the body of the first equation.
-matchCompilerM [] _ ((_, s1) : _) = do 
+matchCompilerM [] _ ((_, s1) : _) = do
   return s1
 matchCompilerM es d eqns@(_ : _) 
 -- third case: all first patterns are variables 
@@ -196,8 +197,6 @@ fourthCase (e : es) d eqns
       stmtsFrom [] = []
       stmtsFrom ((_, ss) : _) = ss 
       
-      single [_] = True 
-      single _ = False 
 
 groupByConstrHead :: Equations Id -> [Equations Id]
 groupByConstrHead = groupBy (\ c c' -> compareConstr c c' == EQ)
@@ -214,13 +213,25 @@ fifthCase [] _ []
   = throwError "Panic! Impossible --- fifthCase"
 fifthCase es@(_ : _) d eqns@(_ : eqs)
   = do
-      liftIO $ putStrLn "Quinto!"
       let eqnss = reverse $ splits isConstr eqns
       case unsnoc eqnss of
         Just (eqs, eq) -> do 
-          d' <- generateFunctions es d eqs 
-          matchCompilerM es d' eq 
+          d' <- generateFunctions es d eqs
+          r <- matchCompilerM es d' eq 
+          addDefaultCase d' r
         Nothing -> throwError "Panic! Impossible --- fifthCase"
+
+addDefaultCase :: [Stmt Id] -> [Stmt Id] -> CompilerM [Stmt Id]
+addDefaultCase _ [] = pure []
+addDefaultCase d [Match es eqn]
+  = do 
+      pv <- freshPVar 
+      pure [Match es (eqn ++ [([pv], d)])]
+addDefaultCase _ [s] = pure [s]
+addDefaultCase d (s : ss) 
+  = do 
+      ss' <- addDefaultCase d ss 
+      pure (s : ss')
 
 hasVarsBetweenConstrs :: Equations Id -> Bool
 hasVarsBetweenConstrs eqns 
@@ -238,10 +249,13 @@ generateFunction es d eqn
   = do
       n <- newFunName
       ss <- matchCompilerM es d eqn
-      let fd = FunDef (Signature n [] [] (Just (blockType ss))) ss
+      let 
+        toParam n@(Id _ t) = Typed n t  
+        vs = ids ss
+      let fd = FunDef (Signature n [] (map toParam vs) (Just (blockType ss))) ss
       tell [fd]
       v <- (TyVar . TVar) <$> freshName 
-      return [StmtExp $ generateCall (Id n v) []] 
+      return [StmtExp $ generateCall (Id n v) (Var <$> vs)] 
 
 newFunName :: CompilerM Name 
 newFunName 
@@ -328,21 +342,26 @@ allPatsStartsWithVars = all startWithVar
 type Subst = [(Name, Name)]
 
 class Apply a where
+  ids :: a -> [Id]
   vars :: a -> [Name]
   apply :: Subst -> a -> a 
 
-  vars _ = []
+  vars  = map idName . ids 
 
 instance Apply a => Apply [a] where 
   apply s = map (apply s)
-  vars = foldr (union . vars) []
+  ids = foldr (union . ids) []
 
 instance Apply a => Apply (Maybe a) where 
   apply _ Nothing = Nothing 
   apply s (Just x) = Just (apply s x)
 
+  ids = maybe [] ids 
+
 instance (Apply a, Apply b) => Apply (a, b) where
   apply s (a,b) = (apply s a, apply s b)
+  ids (a, b) = ids a `union` ids b
+
 
 instance Apply (Stmt Id) where 
   apply s (e1 := e2) 
@@ -355,6 +374,18 @@ instance Apply (Stmt Id) where
     = Return (apply s e)
   apply s (Match es eqns)
     = Match (apply s es) (apply s eqns) 
+
+  ids (e1 := e2) = ids [e1, e2]
+  ids (Let n _ me) = [x | x <- ids me, n /= x]
+  ids (StmtExp e) = ids e 
+  ids (Return e) = ids e 
+  ids (Match es eqns) 
+    = ids es `union` vs' 
+      where 
+        vs' = ids bs \\ ids ps 
+        (pss, bss) = unzip eqns 
+        bs = concat bss 
+        ps = concat pss 
 
 instance Apply (Exp Id) where 
   apply s v@(Var (Id n t))
@@ -371,12 +402,26 @@ instance Apply (Exp Id) where
   apply s (Lam args bd mt) 
     = Lam args (apply s bd) mt
 
+  ids (Var n) = [n]
+  ids (Con _ es) = ids es 
+  ids (FieldAccess e _) = ids e 
+  ids (Call me _ es) = ids me `union` ids es 
+  ids (Lam args bd _) 
+    = ids bd \\ ids args
+  ids _ = []
+
+instance Apply (Param Id) where 
+  apply _ p = p 
+  
+  ids (Typed n _) = [n]
+  ids (Untyped n) = [n]
+
 instance Apply (Pat Id) where 
   apply _ p = p
 
-  vars (PVar (Id v _)) = [v]
-  vars (PCon _ ps) = foldr (union . vars) [] ps 
-  vars _ = []
+  ids (PVar n) = [n]
+  ids (PCon _ ps) = foldr (union . ids) [] ps 
+  ids _ = []
 
 -- infrastructure for the algorithm 
 
