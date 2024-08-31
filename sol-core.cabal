@@ -46,6 +46,7 @@ library
 
   -- cabal-fmt: expand src
   exposed-modules:
+      Solcore.Desugarer.CallDesugarer
       Solcore.Desugarer.Defunctionalization
 --      Solcore.Desugarer.ExaustivenessCheck
       Solcore.Desugarer.MatchCompiler

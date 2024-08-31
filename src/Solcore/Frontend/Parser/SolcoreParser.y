@@ -255,7 +255,7 @@ Expr : Name                                        {Var $1}
      | Expr '.' Name                               {FieldAccess $1 $3}
      | Expr '.' Name FunArgs                       {Call (Just $1) $3 $4}
      | Name FunArgs                                {Call Nothing $1 $2}
-     | 'lam' '(' ParamList ')' Body                {Lam $3 $5 Nothing} 
+     | 'lam' '(' ParamList ')' OptRetTy Body       {Lam $3 $6 $5} 
 
 ConArgs :: {[Exp Name]}
 ConArgs : '[' ExprCommaList ']'                    {$2}

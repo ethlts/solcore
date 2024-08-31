@@ -7,6 +7,40 @@ import Solcore.Frontend.Syntax.Name
 import Solcore.Frontend.Syntax.Stmt 
 import Solcore.Frontend.Syntax.Ty 
 
+-- basic type classes 
+
+selfVar :: Tyvar 
+selfVar = TVar (Name "self")
+
+argsVar :: Tyvar 
+argsVar = TVar (Name "args")
+
+retVar :: Tyvar 
+retVar = TVar (Name "ret")
+
+invokeClass :: Class Name 
+invokeClass 
+  = Class [] (Name "Invoke") 
+             [argsVar, retVar] 
+             selfVar 
+             [invokeSignature]
+
+invokePred :: Pred 
+invokePred 
+  = InCls (Name "Invoke")
+          (TyVar selfVar)
+          (TyVar <$> [argsVar, retVar])
+
+         
+
+invokeSignature :: Signature Name 
+invokeSignature 
+  = Signature (Name "invoke")
+              [invokePred]
+              [ Typed (Name "self") (TyVar selfVar)
+              , Typed (Name "args") (TyVar argsVar)
+              ]
+              (Just (TyVar retVar))
 -- basic types 
 
 word :: Ty 
