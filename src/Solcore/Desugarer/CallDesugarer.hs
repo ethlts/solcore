@@ -2,7 +2,6 @@ module Solcore.Desugarer.CallDesugarer where
 
 import Control.Monad.Except
 import Control.Monad.State
-import Control.Monad.Writer
 
 import Data.List
 import Data.Maybe
@@ -11,6 +10,23 @@ import Solcore.Frontend.Syntax
 import Solcore.Frontend.Pretty.SolcorePretty
 import Solcore.Frontend.TypeInference.TcSubst (fv)
 import Solcore.Primitives.Primitives 
+
+desugarCalls :: CompUnit Name -> IO (CompUnit Name)
+desugarCalls cunit 
+  = do 
+       (cunit', env') <- runCallM (desugar' cunit) (mkEnv cunit)
+       pure (addNewDefs cunit' (declarations env'))
+       
+        
+desugar' :: CompUnit Name -> CallM (CompUnit Name)
+desugar' cunit 
+  = do 
+      cunit' <- desugarIndirectCalls cunit 
+      desugarLambdas cunit' 
+
+addNewDefs :: CompUnit Name -> [TopDecl Name] -> CompUnit Name 
+addNewDefs (CompUnit imps ds) ds' 
+  = CompUnit imps (ds ++ ds')
 
 -- desugaring lambdas
 
@@ -87,7 +103,7 @@ instance DesugarLambdas (Exp Name) where
   desugarLambdas e@(Lam ps bd mt)
     | isCaptureFree e 
       = desugarCaptureFreeLam e 
-    | otherwise = desugarCaptureLam e 
+    | otherwise = pure e 
   desugarLambdas (Call me n es) 
     = do 
         me' <- maybe (pure Nothing)
@@ -122,22 +138,23 @@ desugarCaptureFreeLam e@(Lam ps bd mt)
       pure ce
 desugarCaptureFreeLam e = pure e 
 
-desugarCaptureLam :: Exp Name -> CallM (Exp Name)
-desugarCaptureLam e@(Lam ps bd mt) 
-  = do 
-      -- first we conver all untyped 
-      -- parameters to typed ones with 
-      -- fresh variables 
-      n <- freshCounter 
-      ps' <- mapM typedParam ps
-      mt' <- maybe freshTyVar pure mt 
-      let s = Name ("lambda_impl" <> show n)
-          vs = vars e -- free variables inside lambda 
-      ps'' <- mapM (typedParam . Untyped) vs 
-      let sig = Signature s [] (ps'' ++ ps') (Just mt')
-      addFunDef (FunDef sig bd)
-      pure e
-desugarCaptureLam e = pure e 
+-- desugarCaptureLam :: Exp Name -> CallM (Exp Name)
+-- desugarCaptureLam e@(Lam ps bd mt) 
+--   = do 
+--       -- first we conver all untyped 
+--       -- parameters to typed ones with 
+--       -- fresh variables 
+--       n <- freshCounter 
+--       ps' <- mapM typedParam ps
+--       mt' <- maybe freshTyVar pure mt 
+--       let s = Name ("lambda_impl" <> show n)
+--           vs = vars e -- free variables inside lambda 
+--       ps'' <- mapM (typedParam . Untyped) vs 
+--       let sig = Signature s [] (ps'' ++ ps') (Just mt')
+--       addFunDef (FunDef sig bd)
+--       pure e
+-- desugarCaptureLam e = pure e 
+--
 
 debugDesugarCaptureFreeLam :: Exp Name -> Exp Name -> FunDef Name -> CallM ()
 debugDesugarCaptureFreeLam e cd fd 
@@ -303,11 +320,14 @@ data Env
     , debugInfo :: [String]
     } 
 
-type CallM a = StateT Env (ExceptT String IO) a 
+type CallM a = (StateT Env IO) a 
 
-runCallM :: CallM a -> Env -> IO (Either String (a, Env))
+runCallM :: CallM a -> Env -> IO (a, Env)
 runCallM m env 
-  = runExceptT (runStateT m env)
+  = runStateT m env
+
+mkEnv :: CompUnit Name -> Env 
+mkEnv cunit = Env (collect cunit) 0 [] []
 
 -- basic monad operations 
 
@@ -394,6 +414,8 @@ insertInstance :: Instance Name -> ModuleInfo -> ModuleInfo
 insertInstance ins env 
   = env { instances = ins : instances env }
 
+instance Collect (CompUnit Name) where 
+  collect (CompUnit _ ds) = collect ds 
 
 instance Collect (TopDecl Name) where 
   collect (TContr c) 

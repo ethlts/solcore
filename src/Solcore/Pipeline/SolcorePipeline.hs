@@ -6,6 +6,7 @@ import qualified Data.Map as Map
 
 import Options.Applicative
 
+import Solcore.Desugarer.CallDesugarer hiding (info)
 import Solcore.Desugarer.Defunctionalization
 import Solcore.Desugarer.MatchCompiler
 import Solcore.Frontend.Lexer.SolcoreLexer
@@ -26,7 +27,11 @@ pipeline = do
   content <- readFile (fileName opts)
   let r1 = runAlex content parser
   withErr r1 $ \ ast -> do
-    r2 <- sccAnalysis ast
+    ast1 <- desugarCalls ast
+    when verbose $ do 
+      putStrLn "AST after desugared calls"
+      putStrLn $ pretty ast1 
+    r2 <- sccAnalysis ast1
     withErr r2 $ \ ast' -> do
       r3 <- typeInfer ast'
       withErr r3 $ \ (c', env) -> do
