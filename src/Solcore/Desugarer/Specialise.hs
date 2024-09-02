@@ -139,7 +139,7 @@ getSpSubst :: SM Subst
 getSpSubst = gets spSubst
 
 extSpSubst :: Subst -> SM ()
-extSpSubst subst = modify $ \s -> s { spSubst = subst <> spSubst s }
+extSpSubst subst = modify $ \s -> s { spSubst =  spSubst s <> subst }
 
 restrictSpSubst :: [Tyvar] -> SM ()
 restrictSpSubst ns = modify prune where
@@ -255,15 +255,11 @@ specCall i args ty = do
     Just (fd, ty, phi) -> do
       writes ["< resolution: ", show name, " : ", pretty ty, "@", pretty phi]
       extSpSubst phi
-      -- now default all remaining free type vars to Word
-      ty' <- atCurrentSubst ty
-      let freeTvs = fv ty'
-      let defaultSubst = Subst $ map (,word) freeTvs
-      unless (null freeTvs) $ debug  ["!! specCall: ", show name, prettys args,
-         " defaulting ", prettys freeTvs, " to Word"]
-      extSpSubst defaultSubst
+      -- ty' <- atCurrentSubst ty
+      subst <- getSpSubst
+      let ty' = apply subst ty
+      ensureClosed ty' (Call Nothing i args) subst
       name' <- specFunDef fd
-      ty' <- atCurrentSubst ty
       debug ["< specCall: ", pretty name']
       args'' <- atCurrentSubst args'
       return (Id name' ty', args'')
@@ -321,17 +317,18 @@ ensureSimple ty' stmt subst = case ty' of
 -}
 
 -- | `ensureClosed` checks that a type is closed, i.e. has no free type variables
-ensureClosed :: Ty -> SM ()
-ensureClosed ty = do
+ensureClosed :: Pretty a => Ty -> a -> Subst ->  SM ()
+ensureClosed ty ctxt subst = do
   let tvs = fv ty
-  unless (null tvs) $ panics ["specStmt: free type vars in ", pretty ty, ": ", show tvs]
+  unless (null tvs) $ panics ["spec(", pretty ctxt,"): free type vars in ", show ty, ": ", show tvs
+                             , " @ subst=", pretty subst]
 
 specStmt :: Stmt Id -> SM(Stmt Id)
 specStmt stmt@(Return e) = do
   subst <- getSpSubst
   let ty = typeOfTcExp e
   let ty' = apply subst ty
-  ensureClosed ty'
+  ensureClosed ty' stmt subst
   -- writes ["> specExp (Return): ", pretty e," : ", pretty ty, " ~> ", pretty ty']
   e' <- specExp e ty'
   -- writes ["< specExp (Return): ", pretty e']
@@ -345,7 +342,7 @@ specStmt stmt@(Var i := e) = do
   let ty' = idType i'
   debug ["specStmt (:=): ", pretty i, " : ", pretty (idType i)
         , " @ ", pretty subst, "~>'", pretty ty']
-  ensureClosed ty'
+  ensureClosed ty' stmt subst
   e' <- specExp e ty'
   debug ["< specExp (:=): ", pretty e']
   return $ Var i' := e'
@@ -355,7 +352,7 @@ specStmt stmt@(Let i mty mexp) = do
   -- debug ["specStmt (Let): ", pretty i, " : ", pretty (idType i), " @ ", pretty subst]
   i' <- atCurrentSubst i
   let ty' = idType i'
-  ensureClosed ty'
+  ensureClosed ty' stmt subst
   mty' <- atCurrentSubst mty
   case mexp of
     Nothing -> return $ Let i' mty' Nothing
