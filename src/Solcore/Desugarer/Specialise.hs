@@ -306,6 +306,7 @@ specFunDef fd = withLocalState do
 specBody :: [Stmt Id] -> SM [Stmt Id]
 specBody = mapM specStmt
 
+{-
 ensureSimple ty' stmt subst = case ty' of
     TyVar _ -> panics [ "specStmt(",pretty stmt,"): polymorphic return type: "
                       ,  pretty ty', " subst=", pretty subst]
@@ -314,20 +315,22 @@ ensureSimple ty' stmt subst = case ty' of
                       ,"\nIn:\n", show stmt
                       ]
     _ -> return ()
+-}
+
+-- | `ensureClosed` checks that a type is closed, i.e. has no free type variables
+ensureClosed :: Ty -> SM ()
+ensureClosed ty = do
+  let tvs = fv ty
+  unless (null tvs) $ panics ["specStmt: free type vars in ", pretty ty, ": ", show tvs]
+
 specStmt :: Stmt Id -> SM(Stmt Id)
 specStmt stmt@(Return e) = do
   subst <- getSpSubst
   let ty = typeOfTcExp e
   let ty' = apply subst ty
-  -- now default all remaining free type vars to Word
-  let freeTvs = fv ty'
-  let defaultSubst = Subst $ map (,word) freeTvs
-  unless (null freeTvs) $ debug  ["!! specStmt: ", pretty stmt, " : ", pretty ty, " ~> ", pretty ty',
-         " defaulting ", show freeTvs, " to Word"]
-  let ty'' = apply defaultSubst ty'
-  -- ensureSimple ty' stmt subst
+  ensureClosed ty'
   -- writes ["> specExp (Return): ", pretty e," : ", pretty ty, " ~> ", pretty ty']
-  e' <- specExp e ty''
+  e' <- specExp e ty'
   -- writes ["< specExp (Return): ", pretty e']
   return $ Return e'
 
@@ -339,7 +342,7 @@ specStmt stmt@(Var i := e) = do
   let ty' = idType i'
   debug ["specStmt (:=): ", pretty i, " : ", pretty (idType i)
         , " @ ", pretty subst, "~>'", pretty ty']
-  ensureSimple ty' stmt subst
+  ensureClosed ty'
   e' <- specExp e ty'
   debug ["< specExp (:=): ", pretty e']
   return $ Var i' := e'
@@ -349,7 +352,7 @@ specStmt stmt@(Let i mty mexp) = do
   -- debug ["specStmt (Let): ", pretty i, " : ", pretty (idType i), " @ ", pretty subst]
   i' <- atCurrentSubst i
   let ty' = idType i'
-  ensureSimple ty' stmt subst
+  ensureClosed ty'
   mty' <- atCurrentSubst mty
   case mexp of
     Nothing -> return $ Let i' mty' Nothing
