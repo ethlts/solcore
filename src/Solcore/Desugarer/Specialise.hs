@@ -297,6 +297,9 @@ specFunDef fd = withLocalState do
     Just fd' -> return name'
     Nothing -> do
       let sig' = apply subst (funSignature fd)
+      -- add a placeholder first to break loops
+      let placeholder = FunDef sig' []
+      addSpecialisation name' placeholder
       body' <- specBody (funDefBody fd)
       let fd' = FunDef sig'{sigName = name'} body'
       debug ["! specFunDef: adding specialisation ", show name', " : ", pretty ty']
@@ -369,9 +372,10 @@ specStmt stmt = errors ["specStmt not implemented for: ", show stmt]
 specMatch :: [Exp Id] -> [([Pat Id], [Stmt Id])] -> SM (Stmt Id)
 specMatch exps alts = do
   subst <- getSpSubst
-  debug ["specMatch, scrutinee: ", show exps, " @ ", pretty subst]
+  debug ["> specMatch, scrutinee: ", show exps, " @ ", pretty subst]
   exps' <- specScruts exps
   alts' <- forM alts specAlt
+  debug ["< specMatch, alts': ", show alts']
   return $ Match exps' alts'
   where
     specAlt (pat, body) = do
