@@ -1,0 +1,59 @@
+function addW(x: Word, y:Word) -> Word {
+   let res : Word;
+   assembly {
+       res := add(x, y)
+    };
+    return res;
+}
+
+class a:Enum {
+    function fromEnum(x:a) -> Word;
+  }
+
+  data Color = R | G | B
+
+instance Color : Enum {
+  function fromEnum(c) {
+    match c {
+      | R => return 1;
+      | G => return 2;
+      | B => return 3;
+    };
+  }
+}
+
+data Bool = False | True
+
+instance Bool : Enum {
+  function fromEnum(b) {
+      match b {
+      | False => return 0;
+      | True => return 1;
+      };
+  }
+}
+data FromEnumToken[a] = FromEnumToken
+
+class self : Invokable[args, ret] {
+    function invoke (s:self,  a:args) -> ret;
+}
+
+instance [a:Enum] => FromEnumToken[a] : Invokable[a,Word] {
+   function invoke(fet : FromEnumToken[a], arg) -> Word {
+     return fromEnum(arg);
+   }
+}
+contract RGB {
+  function main() {
+  /*
+  let x = fromEnum(B);
+  let y = fromEnum(True);
+  */
+  
+  let fetC = FromEnumToken;
+  let fetB = FromEnumToken;
+  let x = invoke(fetC, B);
+  let y = invoke(fetB,True);
+  return addW(x,y);
+  }
+}
