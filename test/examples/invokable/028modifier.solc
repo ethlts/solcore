@@ -41,7 +41,7 @@ data FooToken = FooToken
 
 instance FooToken:Invokable[Word, Word] {
   function invoke(self:FooToken, arg: Word) -> Word {
-    foo(arg);
+    return foo(arg);
   }
 }
 
