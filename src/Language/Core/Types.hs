@@ -12,5 +12,5 @@ data Type
     deriving (Show)
 
 stripTypeName :: Type -> Type
-stripTypeName (TNamed _ t) = t
+stripTypeName (TNamed _ t) = stripTypeName t
 stripTypeName t = t

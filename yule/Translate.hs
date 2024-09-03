@@ -130,6 +130,7 @@ genStmt (SFunction name args ret stmts) = withLocalEnv do
               | otherwise-> pure YNoReturn
         _  -> YReturns <$> place "_result" ret
     yulBody <- genStmts stmts
+    debug ["< SFunction: ", name, " ", show yulArgs, " -> ", show yreturns]
     return [YFun (fromString name) yulArgs yreturns yulBody]
     where
         placeArgs :: [Arg] -> TM [Name]
