@@ -240,16 +240,16 @@ specExp e ty = atCurrentSubst e -- FIXME
 specCall :: Id -> [TcExp] -> Ty -> SM (Id, [TcExp])
 specCall i@(Id (Name "revert") e) args ty = pure (i, args)  -- FIXME
 specCall i args ty = do
-  -- writes ["> specCall: ", show i, show args, " : ", pretty ty]
   i' <- atCurrentSubst i
   ty' <- atCurrentSubst ty
-  -- guardSimpleType ty'
+  -- debug ["> specCall: ", pretty i', show args, " : ", pretty ty']
   let name = idName i'
   let argTypes = map typeOfTcExp args
-  let typedArgs = zip args argTypes
+  argTypes' <- atCurrentSubst argTypes
+  let typedArgs = zip args argTypes'
   args' <- forM typedArgs (uncurry specExp)
-  let funType = foldr (:->) ty argTypes
-  -- writes ["! specCall: ", show name, " : ", pretty funType]
+  let funType = foldr (:->) ty' argTypes'
+  debug ["! specCall: ", show name, " : ", pretty funType]
   mres <- lookupResolution name funType
   case mres of
     Just (fd, ty, phi) -> do
