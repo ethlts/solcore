@@ -105,7 +105,7 @@ instance LiftLambda (Exp Name) where
         let free = vars bd \\ vars ps 
         debugInfoLambda e free 
         (e,d) <- createLambdaType free
-        createFunction d ps bd mt 
+        createFunction free d ps bd mt 
         pure e
   liftLambda d = pure d 
 
@@ -119,20 +119,24 @@ createLambdaType ns
       addDecl (TDataDef d)
       pure (Con n (Var <$> ns), d)
 
-createFunction :: DataTy -> [Param Name] -> Body Name -> Maybe Ty -> LiftM ()
-createFunction (DataTy n vs [(Constr m ts)]) ps bd mt 
+createFunction :: [Name] -> 
+                  DataTy -> 
+                  [Param Name] -> 
+                  Body Name -> 
+                  Maybe Ty -> LiftM ()
+createFunction ns (DataTy n vs [(Constr m ts)]) ps bd mt 
   = do 
       f <- freshName "lambda_impl"
       let (np, pool') = newName (namePool \\ vars ps)
           t = TyCon n (TyVar <$> vs) 
           ps' = Typed np t : ps 
           bd' = [Match [Var np] [([PCon m pats], bd)]]
-          pats = zipWith (\ _ v -> PVar v) ts pool' 
+          pats = map PVar ns 
           sig = Signature f [] ps' mt
           fd = FunDef sig bd' 
       debugCreateFunction fd 
       addDecl (TFunDef fd)
-createFunction dt _ _ _ 
+createFunction _ dt _ _ _ 
   = throwError $ unlines [ "Impossible! Closure type does not have one constructor:"
                          , pretty dt 
                          ]

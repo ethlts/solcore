@@ -6,8 +6,6 @@ import qualified Data.Map as Map
 
 import Options.Applicative
 
--- import Solcore.Desugarer.CallDesugarer hiding (info)
--- import Solcore.Desugarer.Defunctionalization
 import Solcore.Desugarer.LambdaLifting
 import Solcore.Desugarer.MatchCompiler
 import Solcore.Frontend.Lexer.SolcoreLexer
