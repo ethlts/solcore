@@ -252,7 +252,7 @@ generateFunction es d eqn
       let 
         toParam n@(Id _ t) = Typed n t  
         vs = ids ss
-      let fd = FunDef (Signature n [] (map toParam vs) (Just (blockType ss))) ss
+      let fd = FunDef (Signature [] [] n (map toParam vs) (Just (blockType ss))) ss
       tell [fd]
       v <- (TyVar . TVar) <$> freshName 
       return [StmtExp $ generateCall (Id n v) (Var <$> vs)] 

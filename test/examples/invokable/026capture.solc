@@ -16,7 +16,7 @@ function addW(x: Word, y:Word) -> Word {
     return res;
 }
 
-class self : Invokable[args, ret] {
+class self : Invokable(args, ret) {
     function invoke (s:self,  a:args) -> ret;
 }
 
@@ -26,12 +26,12 @@ function lam1impl(env: Word, x: c) -> c {
    return addW(x,y);
 }
 
-data Lam1Closure[a] = Lam1Closure[Word]
+data Lam1Closure(a) = Lam1Closure(Word)
 
-instance Lam1Closure[a] : Invokable[a,Word] {
-  function invoke(clos: Lam1Closure[a], arg:a) -> Word {
+instance Lam1Closure(a) : Invokable(a,Word) {
+  function invoke(clos: Lam1Closure(a), arg:a) -> Word {
   match clos {
-    | Lam1Closure[env] => return lam1impl(env, arg);
+    | Lam1Closure(env) => return lam1impl(env, arg);
     };
   }
 }
@@ -40,7 +40,7 @@ instance Lam1Closure[a] : Invokable[a,Word] {
 contract InvokeCapLam {
 function main() {
   let y = 42;
-  let clos = Lam1Closure[y];
+  let clos = Lam1Closure(y);
   
   return invoke(clos, 17);
 }

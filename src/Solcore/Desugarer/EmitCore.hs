@@ -114,7 +114,7 @@ emitFunDef (FunDef sig body) = do
   return [coreFun]
 
 translateSig :: Signature Id -> EM (CoreName, [Core.Arg], Core.Type)
-translateSig sig@(Signature n ctxt args (Just ret)) = do
+translateSig sig@(Signature vs ctxt n args (Just ret)) = do
   dataTable <- gets ecDT
   -- debug ["translateSig ", show sig]
   let name = unName n

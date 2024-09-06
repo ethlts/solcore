@@ -27,6 +27,7 @@ import Language.Yul
       'let'      {Token _ TLet}
       '='        {Token _ TEq}
       '.'        {Token _ TDot}
+      'forall'   {Token _ TForall}
       'class'    {Token _ TClass}
       'instance' {Token _ TInstance}
       'if'       {Token _ TIf}
@@ -56,8 +57,6 @@ import Language.Yul
       ')'        {Token _ TRParen}
       '{'        {Token _ TLBrace}
       '}'        {Token _ TRBrace}
-      '['        {Token _ TLBrack}
-      ']'        {Token _ TRBrack}
       '|'        {Token _ TBar}
 
 %expect 0
@@ -140,7 +139,7 @@ ClassBody :: {[Signature Name]}
 ClassBody : '{' Signatures '}'                     {$2}
 
 OptParam :: { [Tyvar] }
-OptParam :  '[' VarCommaList ']'                   {$2}
+OptParam :  '(' VarCommaList ')'                   {$2}
          | {- empty -}                             {[]}
 
 VarCommaList :: { [Tyvar] }
@@ -148,11 +147,11 @@ VarCommaList : Var ',' VarCommaList                {$1 : $3}
              | Var                                 {[$1]}
 
 ContextOpt :: {[Pred]}
-ContextOpt : {- empty -}                           {[]}
+ContextOpt : {- empty -} %shift                    {[]}
            | Context                               {$1}
 
 Context :: {[Pred]}
-Context : '[' ConstraintList ']' '=>'              { $2 }   
+Context : '(' ConstraintList ')' '=>'              { $2 }   
 
 ConstraintList :: { [Pred] }
 ConstraintList : Constraint ',' ConstraintList     {$1 : $3}
@@ -166,11 +165,9 @@ Signatures : Signature ';' Signatures              {$1 : $3}
            | {- empty -}                           {[]}
 
 Signature :: { Signature Name}
-Signature : 'function' Name ConOpt '(' ParamList ')' OptRetTy   {Signature $2 $3 $5 $7}
+Signature : 'forall' VarCommaList '.' Context 'function' Name '(' ParamList ')' OptRetTy {Signature $2 $4 $6 $8 $10}
+          | 'function' Name '(' ParamList ')' OptRetTy   {Signature [] [] $2 $4 $6}
 
-ConOpt :: {[Pred]}
-ConOpt : {- empty -}                               {[]}
-       | '[' ConstraintList ']'                    {$2}
 
 ParamList :: { [Param Name] }
 ParamList : Param                                  {[$1]}
@@ -187,7 +184,7 @@ InstDef :: { Instance Name }
 InstDef : 'instance' ContextOpt Type ':' Con OptTypeParam InstBody { Instance $2 $5 $6 $3 $7 }
 
 OptTypeParam :: { [Ty] }
-OptTypeParam : '[' TypeCommaList ']'          {$2}
+OptTypeParam : '(' TypeCommaList ')'          {$2}
              | {- empty -}                    {[]}
 
 TypeCommaList :: { [Ty] }
@@ -258,7 +255,7 @@ Expr : Name                                        {Var $1}
      | 'lam' '(' ParamList ')' OptRetTy Body       {Lam $3 $6 $5} 
 
 ConArgs :: {[Exp Name]}
-ConArgs : '[' ExprCommaList ']'                    {$2}
+ConArgs : '(' ExprCommaList ')'                    {$2}
         | {- empty -}                              {[]} 
 
 FunArgs :: {[Exp Name]} 
@@ -290,7 +287,7 @@ Pattern : Name                                     {PVar $1}
         | '(' Pattern ')'                          {$2}
 
 PatternList :: {[Pat Name]}
-PatternList : '[' PatList ']'                      {$2}
+PatternList : '(' PatList ')'                      {$2}
             | {- empty -}                          {[]}
 
 PatList :: { [Pat Name] }

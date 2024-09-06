@@ -10,7 +10,7 @@ function addW(x: Word, y:Word) -> Word {
     return res;
 }
 
-class self : Invokable[args, ret] {
+class self : Invokable(args, ret) {
     function invoke (s:self,  a:args) -> ret;
 }
 
@@ -39,7 +39,7 @@ function foo(x:Word) -> Word {
 
 data FooToken = FooToken
 
-instance FooToken:Invokable[Word, Word] {
+instance FooToken:Invokable(Word, Word) {
   function invoke(self:FooToken, arg: Word) -> Word {
     return foo(arg);
   }
@@ -48,7 +48,7 @@ instance FooToken:Invokable[Word, Word] {
 // lambda in add1mod captures a function
 // so env contains the closure
 
-function lam1impl [f: Invokable[Word,Word]](env : f, a:Word) {
+function lam1impl (env : f, a:Word) {
   let f = env;
   return add1(invoke(f, a));
 }

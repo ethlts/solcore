@@ -1,19 +1,19 @@
 contract Option {
-  data Option[a] = None | Some[a]
+  data Option(a) = None | Some(a)
 
-  function just(x) { return Some[x]; }
+  function just(x) { return Some(x); }
 
   function maybe(n, o) {
     match o {
       | None => return n;
-      | Some[x] => return x;
+      | Some(x) => return x;
     };
   }
 
   function join(mmx) {
     let result = None;
     match mmx {
-      | Some[Some[x]] => result = Some[x];
+      | Some(Some(x)) => result = Some(x);
       | None => result = None;
     };
     return result;
@@ -21,13 +21,13 @@ contract Option {
 
  function extract(mx) {
    match mx {
-     | Some[x] => return x;
+     | Some(x) => return x;
    };
  }   
 
   function cojoin(x) { // Test that sum types can grow
     let result = None;
-    result = Some[x]; 
+    result = Some(x); 
     return result;
    }
 

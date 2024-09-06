@@ -132,7 +132,7 @@ createFunction ns (DataTy n vs [(Constr m ts)]) ps bd mt
           ps' = Typed np t : ps 
           bd' = [Match [Var np] [([PCon m pats], bd)]]
           pats = map PVar ns 
-          sig = Signature f [] ps' mt
+          sig = Signature [] [] f ps' mt -- XXX need to check here
           fd = FunDef sig bd' 
       debugCreateFunction fd 
       addDecl (TFunDef fd)

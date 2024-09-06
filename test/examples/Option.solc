@@ -1,11 +1,11 @@
 contract Option {
-  data Option[a] = None | Some[a]
+  data Option(a) = None | Some(a)
 
   function join(mmx) {
     match mmx {
     | None => return None;
-    | Some[Some[x]] => return Some[x];
-    | Some[None] => return None;
+    | Some(Some(x)) => return Some(x);
+    | Some(None) => return None;
     };
   }
 

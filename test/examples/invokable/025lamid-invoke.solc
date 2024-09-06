@@ -7,16 +7,16 @@ contract Id1 {
 }
 */
 
-class self : Invokable[args, ret] {
+class self : Invokable(args, ret) {
     function invoke (s:self,  a:args) -> ret;
 }
 
 function lam0impl(x: c) -> c { return x; }
 
-data Lam0Token[a] = Lam0Token
+data Lam0Token(a) = Lam0Token
 
-instance Lam0Token[a] : Invokable[a,a] {
-  function invoke(token: Lam0Token[a], arg:a) -> a {
+instance Lam0Token(a) : Invokable(a,a) {
+  function invoke(token: Lam0Token(a), arg:a) -> a {
     return lam0impl(arg);
   }
 }

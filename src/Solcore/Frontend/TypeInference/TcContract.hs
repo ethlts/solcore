@@ -118,7 +118,7 @@ checkDecl (CMutualDecl ds)
 checkDecl _ = return ()
 
 extSignature :: Signature Name -> TcM ()
-extSignature (Signature n ctx ps t)
+extSignature (Signature _ ctx n ps t)
   = do
       argTys <- mapM tyParam ps
       t' <- maybe freshTyVar pure t
@@ -226,8 +226,9 @@ tcSig (sig, (Forall _ (_ :=> t)))
           param (Typed n t) t1 = Typed (Id n t1) t1 
           param (Untyped n) t1 = Typed (Id n t1) t1
           params' = zipWith param (sigParams sig) ts
-      pure (Signature (sigName sig)
+      pure (Signature (sigVars sig)
                       (sigContext sig)
+                      (sigName sig)
                       params'
                       (Just r))
 
@@ -264,8 +265,9 @@ tcFunDef d@(FunDef sig bd)
       let t1 = foldr (:->) t' ts
       s <- unify t t1 `wrapError` d
       rTy <- withCurrentSubst t'
-      let sig' = Signature (sigName sig)
+      let sig' = Signature (sigVars sig) 
                            (sigContext sig) 
+                           (sigName sig)
                            params' 
                            (Just rTy)
       ps2 <- reduceContext (ps ++ ps1)
@@ -277,10 +279,10 @@ scanFun (FunDef sig bd)
     where 
       f (Typed n t) = pure $ Typed n t
       f (Untyped n) = Typed n <$> freshTyVar
-      fillSignature (Signature ctx n ps t)
+      fillSignature (Signature vs ctx n ps t)
         = do 
             ps' <- mapM f ps 
-            pure (Signature ctx n ps' t)
+            pure (Signature vs ctx n ps' t)
 
 -- type generalization 
 
@@ -397,7 +399,7 @@ checkClass (Class ps n vs v sigs)
       addClassInfo n (length vs) ms' p
       mapM_ (checkSignature p) sigs 
     where
-      checkSignature p sig@(Signature f ctx ps mt)
+      checkSignature p sig@(Signature vs ctx f ps mt)
         = do
             pst <- mapM tyParam ps
             t' <- maybe freshTyVar pure mt
@@ -412,14 +414,14 @@ addClassInfo n ar ms p
       env{ classTable = Map.insert n (ar, ms, p) (classTable env)})
 
 addClassMethod :: Pred -> Signature Name -> TcM ()
-addClassMethod p@(InCls _ _ _) (Signature f _ ps t) 
+addClassMethod p@(InCls _ _ _) (Signature _ _ f ps t) 
   = do
       tps <- mapM tyParam ps
       t' <- maybe freshTyVar pure t
       let ty = funtype tps t'
           vs = fv ty
       extEnv f (Forall vs ([p] :=> ty))
-addClassMethod p@(_ :~: _) (Signature n _ _ _) 
+addClassMethod p@(_ :~: _) (Signature _ _ n _ _) 
   = throwError $ unlines [
                     "Invalid constraint:"
                   , pretty p 
@@ -525,7 +527,7 @@ checkMeasure ps c
 -- error for class definitions 
 
 signatureError :: Name -> Tyvar -> Signature Name -> Ty -> TcM ()
-signatureError n v (Signature f ctx _ _) t
+signatureError n v (Signature _ ctx f _ _) t
   | null ctx = throwError $ unlines ["Impossible! Class context is empty in function:" 
                                     , pretty f
                                     , "which is a membre of the class declaration:"

@@ -1,12 +1,12 @@
 contract EitherModule {
-  data Either[a,b] = Left[a] | Right[b]
-  data List[a] = Nil | Cons[a,List[a]]
+  data Either(a,b) = Left(a) | Right(b)
+  data List(a) = Nil | Cons(a,List(a))
 
   function either (f, g, x) {
     match x {
-    | Left[a] => 
+    | Left(a) => 
       return f(a) ; 
-    | Right[b] => 
+    | Right(b) => 
       return g(b);
     };
   }
@@ -14,23 +14,23 @@ contract EitherModule {
   function lefts(xs) {
     match xs {
     | Nil => return Nil ;
-    | Cons[y,ys] => 
+    | Cons(y,ys) => 
       match y {
-      | Left[z] => return Cons[z,lefts(ys)] ; 
-      | Right[z] => return lefts(ys) ;
+      | Left(z) => return Cons(z,lefts(ys)) ; 
+      | Right(z) => return lefts(ys) ;
       };
     };
   }
 
   function either(f,g,x) {
     match x {
-    | Left[y] => return f(y);
-    | Right[z] => return g(z);
+    | Left(y) => return f(y);
+    | Right(z) => return g(z);
     };
   }
 
   function foo0() {
-    return either((lam (x) {return 1;}), (lam (x) {return 0;}), Right[1]);
+    return either((lam (x) {return 1;}), (lam (x) {return 0;}), Right(1));
   }
 
   function foo1(z) {

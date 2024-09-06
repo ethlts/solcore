@@ -1,6 +1,6 @@
 
 data Food = Curry | Beans | Other
-data CFood = Red[Food] | Green[Food] | Nocolor
+data CFood = Red(Food) | Green(Food) | Nocolor
 
 
 
@@ -17,13 +17,13 @@ data CFood = Red[Food] | Green[Food] | Nocolor
 contract Food {
   function eat(x) {
     match x {
-       | Red[f] => return f;
-       | Green[f] => return f;
+       | Red(f) => return f;
+       | Green(f) => return f;
        | _ => Other;
     };
   }
   
   function main() {
-  return fromEnum(eat(Green[Beans]));
+  return fromEnum(eat(Green(Beans)));
   }
 }

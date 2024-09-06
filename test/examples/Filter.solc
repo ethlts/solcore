@@ -1,4 +1,4 @@
-data List[a] = Nil | Cons[a,List[a]]
+data List(a) = Nil | Cons(a,List(a))
 data Bool = False | True 
 
 function and(x,y) {
@@ -25,16 +25,16 @@ instance Word : Eq {
 function filter (f, xs) {
   match xs {
   | Nil => return Nil ;
-  | Cons[y,ys] => 
+  | Cons(y,ys) => 
     match f(y) {
     | False => return filter(f,ys); 
-    | True => return Cons[y,filter(f,ys)];
+    | True => return Cons(y,filter(f,ys));
     };
   };
 }
 
 function list1 () {
-  return Cons[1, Cons[2, Cons[3, Nil]]]; 
+  return Cons(1, Cons(2, Cons(3, Nil))); 
 }
  
 function foo0(y) {

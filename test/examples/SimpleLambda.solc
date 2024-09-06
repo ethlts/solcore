@@ -1,11 +1,11 @@
 contract SimpleLambda{
-  function f (z) {
+  function f (z : Word) {
     let n = lam (x) {
       return x;
     } ;
     let m = lam (y) {
         return z ;
       };
-    return 0; 
+    return n(0); 
   }
 }

@@ -1,9 +1,9 @@
-data Nat = Zero | Succ[Nat]
+data Nat = Zero | Succ(Nat)
 data Bool = True | False
 
 function even (n) -> Bool {
   match n {
   | Zero => return 1; return True;
-  | Succ[m] => return 0; return False;
+  | Succ(m) => return 0; return False;
   };
 }
