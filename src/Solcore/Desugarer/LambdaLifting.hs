@@ -7,16 +7,17 @@ import Data.List
 import Solcore.Frontend.Pretty.SolcorePretty 
 import Solcore.Frontend.Syntax
 import Solcore.Frontend.TypeInference.NameSupply
+import Solcore.Primitives.Primitives
 
 
 -- lambda lifting transformation top level function 
 
-lambdaLifting :: CompUnit Name -> Either String (CompUnit Name)
+lambdaLifting :: CompUnit Name -> Either String (CompUnit Name, [String])
 lambdaLifting unit 
-  = case runLiftM (liftLambda unit) of 
+  = case runLiftM (liftLambda unit) (collect unit) of 
       Left err -> Left err 
       Right (CompUnit imps ds, env) ->
-       Right (CompUnit imps (generated env ++ ds))  
+       Right (CompUnit imps (generated env ++ ds), debugInfo env)  
 
 -- lifting lambdas
 
@@ -99,7 +100,7 @@ instance LiftLambda (Exp Name) where
   liftLambda (FieldAccess e n) 
     = flip FieldAccess n <$> liftLambda e 
   liftLambda (Call me n es)
-    = Call <$> liftLambda me <*> pure n <*> liftLambda es 
+    = desugarCall me n es 
   liftLambda e@(Lam ps bd mt) 
     = do  
         let free = vars bd \\ vars ps 
@@ -108,6 +109,22 @@ instance LiftLambda (Exp Name) where
         createFunction free d ps bd mt 
         pure e
   liftLambda d = pure d 
+
+desugarCall :: Maybe (Exp Name) -> 
+               Name -> 
+               [Exp Name] -> 
+               LiftM (Exp Name)
+desugarCall me n es 
+  = do 
+      b <- isDirectCall n 
+      me' <- liftLambda me 
+      es' <- liftLambda es 
+      let m = Name "invoke"
+      if b then
+        pure (Call me' n es')
+      else 
+        pure (Call Nothing m (Var n : es'))
+
 
 createLambdaType :: [Name] -> LiftM (Exp Name, DataTy)
 createLambdaType ns 
@@ -172,16 +189,17 @@ debugInfoLambda e ns
 data Env 
   = Env {
       generated :: [TopDecl Name]
+    , functionNames :: [Name]
     , fresh :: Int 
     , debugInfo :: [String]
     }
 
 type LiftM a = StateT Env (ExceptT String Identity) a
 
-runLiftM :: LiftM a -> Either String (a, Env)
-runLiftM m = runIdentity (runExceptT (runStateT m initEnv))
+runLiftM :: LiftM a -> [Name] -> Either String (a, Env)
+runLiftM m ns = runIdentity (runExceptT (runStateT m initEnv))
     where 
-      initEnv = Env [] 0 []
+      initEnv = Env [TClassDef invokeClass] ns 0 []
 
 freshName :: String -> LiftM Name 
 freshName s 
@@ -190,6 +208,12 @@ freshName s
       modify (\ env -> env {fresh = n + 1})
       pure $ Name (s ++ show n)
 
+isDirectCall :: Name -> LiftM Bool 
+isDirectCall n 
+  = do 
+      ns <- gets functionNames 
+      pure (n `elem` ns)
+
 addDecl :: TopDecl Name -> LiftM () 
 addDecl d 
   = modify (\ env -> env{ generated = d : generated env })
@@ -197,6 +221,46 @@ addDecl d
 addDebugInfo :: String -> LiftM ()
 addDebugInfo s 
   = modify (\env -> env{ debugInfo = s : debugInfo env })
+
+-- collecting function names, for determining indirect calls 
+
+class Collect a where 
+  collect :: a -> [Name] 
+
+instance Collect a => Collect [a] where 
+  collect = foldr (union . collect) []
+
+instance Collect (CompUnit Name) where 
+  collect (CompUnit _ ds) = collect ds 
+
+instance Collect (TopDecl Name) where 
+  collect (TContr c) = collect c 
+  collect (TFunDef fd) = collect fd 
+  collect (TClassDef c) = collect c 
+  collect (TInstDef ins) = collect ins 
+  collect (TMutualDef ds) = collect ds 
+  collect _ = []
+
+instance Collect (Contract Name) where 
+  collect (Contract n vs ds) 
+    = collect ds 
+
+instance Collect (ContractDecl Name) where 
+  collect (CFunDecl fd) = collect fd 
+  collect (CMutualDecl ds) = collect ds 
+  collect _ = []
+
+instance Collect (Class Name) where 
+  collect = collect . signatures 
+
+instance Collect (Instance Name) where 
+  collect = collect . instFunctions
+
+instance Collect (Signature Name) where 
+  collect sig = [sigName sig]
+
+instance Collect (FunDef Name) where 
+  collect fd = collect (funSignature fd)
 
 -- determining free variables 
 

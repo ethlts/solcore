@@ -36,7 +36,7 @@ invokePred
 invokeSignature :: Signature Name 
 invokeSignature 
   = Signature [selfVar, argsVar]
-              [invokePred]
+              []
               (Name "invoke")
               [ Typed (Name "self") (TyVar selfVar)
               , Typed (Name "args") (TyVar argsVar)

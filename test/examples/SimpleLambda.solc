@@ -3,9 +3,6 @@ contract SimpleLambda{
     let n = lam (x) {
       return x;
     } ;
-    let m = lam (y) {
-        return z ;
-      };
     return n(0); 
   }
 }

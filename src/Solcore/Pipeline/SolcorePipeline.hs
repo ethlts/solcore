@@ -26,10 +26,12 @@ pipeline = do
   content <- readFile (fileName opts)
   let r1 = runAlex content parser
   withErr r1 $ \ ast -> do
-    withErr (lambdaLifting ast) $ \ ast2 -> do 
+    withErr (lambdaLifting ast) $ \ (ast2, dStrs) -> do 
       when verbose $ do 
         putStrLn "AST after lambda lifting"
-        putStrLn $ pretty ast2 
+        putStrLn $ pretty ast2
+        -- putStrLn "Debugging info:"
+        -- putStrLn $ unlines (reverse dStrs)
       r2 <- sccAnalysis ast2 
       withErr r2 $ \ ast' -> do
         r3 <- typeInfer ast'
