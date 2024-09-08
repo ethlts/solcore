@@ -20,14 +20,14 @@ retVar = TVar (Name "ret")
 
 invokeClass :: Class Name 
 invokeClass 
-  = Class [] (Name "Invoke") 
+  = Class [] (Name "Invokable") 
              [argsVar, retVar] 
              selfVar 
              [invokeSignature]
 
 invokePred :: Pred 
 invokePred 
-  = InCls (Name "Invoke")
+  = InCls (Name "Invokable")
           (TyVar selfVar)
           (TyVar <$> [argsVar, retVar])
 

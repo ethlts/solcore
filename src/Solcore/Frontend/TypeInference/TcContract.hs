@@ -404,7 +404,7 @@ checkClass (Class ps n vs v sigs)
             pst <- mapM tyParam ps
             t' <- maybe freshTyVar pure mt
             let ft = funtype pst t' 
-            unless (null ctx && v `elem` fv ft)
+            unless (v `elem` fv ft)
                    (signatureError n v sig ft)
             addClassMethod p sig 
 
@@ -414,13 +414,14 @@ addClassInfo n ar ms p
       env{ classTable = Map.insert n (ar, ms, p) (classTable env)})
 
 addClassMethod :: Pred -> Signature Name -> TcM ()
-addClassMethod p@(InCls _ _ _) (Signature _ _ f ps t) 
+addClassMethod p@(InCls _ _ _) sig@(Signature _ ctx f ps t) 
   = do
       tps <- mapM tyParam ps
       t' <- maybe freshTyVar pure t
       let ty = funtype tps t'
           vs = fv ty
-      extEnv f (Forall vs ([p] :=> ty))
+          ctx' = [p] `union` ctx
+      extEnv f (Forall vs (ctx' :=> ty))
 addClassMethod p@(_ :~: _) (Signature _ _ n _ _) 
   = throwError $ unlines [
                     "Invalid constraint:"
@@ -527,7 +528,7 @@ checkMeasure ps c
 -- error for class definitions 
 
 signatureError :: Name -> Tyvar -> Signature Name -> Ty -> TcM ()
-signatureError n v (Signature _ ctx f _ _) t
+signatureError n v sig@(Signature _ ctx f _ _) t
   | null ctx = throwError $ unlines ["Impossible! Class context is empty in function:" 
                                     , pretty f
                                     , "which is a membre of the class declaration:"
@@ -542,7 +543,6 @@ signatureError n v (Signature _ ctx f _ _) t
                                             , "that is a member of class definition"
                                             , pretty n 
                                             ]
-
 -- Instances for elaboration 
 
 instance HasType (FunDef Id) where 

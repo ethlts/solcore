@@ -2,11 +2,8 @@ function lambdaimpl1 (x) {
      return x;
 }
 data LambdaTy0(a) = LambdaTy0
-class  self : Invoke {
-   function invoke (self : self, args : args) -> ret;
-}
-instance LambdaTy0(a) : Invoke (a, a) {
-  function invoke (self, args : a) -> a {
+instance LambdaTy0(a) : Invokable (a, a) {
+  function invoke (self : LambdaTy0(a), args : a) -> a {
     return lambdaimpl1(args);
   }
 }

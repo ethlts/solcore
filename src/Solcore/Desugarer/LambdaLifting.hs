@@ -143,7 +143,7 @@ createFunction :: [Name] ->
                   Maybe Ty -> LiftM ()
 createFunction ns (DataTy n vs [(Constr m ts)]) ps bd mt 
   = do 
-      f <- freshName "lambda_impl"
+      f <- freshName "lambdaimpl"
       let (np, pool') = newName (namePool \\ vars ps)
           t = TyCon n (TyVar <$> vs) 
           ps' = Typed np t : ps 
