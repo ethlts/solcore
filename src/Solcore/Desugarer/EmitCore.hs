@@ -223,9 +223,17 @@ emitExp (Var x) = do
     case Map.lookup (idName x) subst of
         Just e -> pure (e, [])
         Nothing -> pure (Core.EVar (unwrapId x), [])
+
 -- special handling of revert
 emitExp (Call _ (Id "revert" _) [Lit(StrLit s)]) = pure(Core.EUnit, [Core.SRevert s])
-emitExp (Call Nothing f as) = do
+
+-- EXPERIMENTAL: special handling of ereturn
+emitExp expr@(Call _ f [arg])
+  | take 8 (unwrapId f) == "ereturn$" = do  -- ereturn is specialised to ereturn$<type>
+    (coreArg, argCode) <- emitExp arg
+    pure(Core.EUnit, appendCode argCode [Core.SReturn coreArg])
+
+emitExp expr@(Call Nothing f as) = do
     (coreArgs, codes) <- unzip <$> mapM emitExp as
     let call =  Core.ECall (unwrapId f) coreArgs
     pure (call, concat codes)
@@ -235,17 +243,17 @@ emitExp e = errors ["emitExp not implemented for: ", pretty e, "\n", show e]
 emitStmt :: Stmt Id -> EM [Core.Stmt]
 emitStmt (StmtExp e) = do
     (e', stmts) <- emitExp e
-    pure (stmts ++ [Core.SExpr e'])
+    pure (appendCode stmts [Core.SExpr e'])
 emitStmt s@(Return e) = do
     (e', stmts) <- emitExp e
-    let result = stmts ++ [Core.SReturn e']
+    let result = appendCode stmts [Core.SReturn e']
     --- debug ["<  emitStmt ", show (Core.Core result)]
     return result
 
 emitStmt (Var i := e) = do
     (e', stmts) <- emitExp e
     let assign = [Core.SAssign (Core.EVar (unwrapId i)) e']
-    return (stmts ++ assign)
+    return (appendCode stmts assign)
 
 emitStmt (Let (Id name ty) mty mexp ) = do
     let coreName = unName name
@@ -255,7 +263,7 @@ emitStmt (Let (Id name ty) mty mexp ) = do
         Just e -> do
             (v, estmts) <- emitExp e
             let assign = [Core.SAssign (Core.EVar coreName) v]
-            return (estmts ++ alloc ++ assign)
+            return (appendCode estmts (alloc ++ assign))
         Nothing -> return alloc
 
 emitStmt s@(Match [scrutinee] alts) = emitMatch scrutinee alts
@@ -441,3 +449,13 @@ unwrapId = unName . idName
 
 unwrapTyvar :: Tyvar -> CoreName
 unwrapTyvar (TVar n) = unName n
+
+-- | appendCode appends statement lists, stopping at a return statement
+stopAtReturn :: [Core.Stmt] -> [Core.Stmt]
+stopAtReturn [] = []
+stopAtReturn (s:ss)
+    | Core.SReturn _ <- s = [s]
+    | otherwise = s : stopAtReturn ss
+
+appendCode :: [Core.Stmt] -> [Core.Stmt] -> [Core.Stmt]
+appendCode code1 code2 = stopAtReturn (code1++code2)
