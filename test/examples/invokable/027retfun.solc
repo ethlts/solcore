@@ -13,7 +13,7 @@ contract Id1 {
 */
 
 class self : Invokable(args, ret) {
-    function invoke (s:x;;self,  a:args) -> ret;
+    function invoke (s:self,  a:args) -> ret;
 }
 
 // env might be a tuple, here it is a single Word

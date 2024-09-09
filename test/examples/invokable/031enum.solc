@@ -32,14 +32,14 @@ instance Bool : Enum {
       };
   }
 }
-data FromEnumToken[a] = FromEnumToken
+data FromEnumToken(a) = FromEnumToken
 
-class self : Invokable[args, ret] {
+class self : Invokable(args, ret) {
     function invoke (s:self,  a:args) -> ret;
 }
 
-instance [a:Enum] => FromEnumToken[a] : Invokable[a,Word] {
-   function invoke(fet : FromEnumToken[a], arg) -> Word {
+instance (a:Enum) => FromEnumToken(a) : Invokable(a,Word) {
+   function invoke(fet : FromEnumToken(a), arg) -> Word {
      return fromEnum(arg);
    }
 }

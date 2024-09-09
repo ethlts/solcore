@@ -54,27 +54,27 @@ function lam1impl (env : f, a:Word) {
 }
 
 // we want:
-// data Lam1Closure = f:Invokable[Word,Word] => Lam1Closure[f]
+// data Lam1Closure = f:Invokable(Word,Word) => Lam1Closure(f)
 
-data Lam1Closure[f] = Lam1Closure[f]
+data Lam1Closure(f) = Lam1Closure(f)
 
 /*
-function extractEnv(clos: Lam1Closure[f]) -> f {
+function extractEnv(clos: Lam1Closure(f)) -> f {
   match clos {
-    | Lam1Closure[env] => return env;
+    | Lam1Closure(env) => return env;
     };
 }
 */
-instance [f:Invokable[Word,Word]] => Lam1Closure[f] : Invokable[Word,Word] {
+instance (f:Invokable(Word,Word)) => Lam1Closure(f) : Invokable(Word,Word) {
   function invoke(clos, arg:Word) -> Word {
     match clos {
-      | Lam1Closure[env] => return lam1impl(env, arg);
+      | Lam1Closure(env) => return lam1impl(env, arg);
     };
   }
 }
 
 function add1mod(f) {
-  return Lam1Closure[f];
+  return Lam1Closure(f);
 }
 
 contract Modifier {
