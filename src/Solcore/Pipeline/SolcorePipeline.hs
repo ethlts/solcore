@@ -30,8 +30,6 @@ pipeline = do
       when verbose $ do 
         putStrLn "AST after lambda lifting"
         putStrLn $ pretty ast2
-        -- putStrLn "Debugging info:"
-        -- putStrLn $ unlines (reverse dStrs)
       r2 <- sccAnalysis ast2 
       withErr r2 $ \ ast' -> do
         r3 <- typeInfer ast'

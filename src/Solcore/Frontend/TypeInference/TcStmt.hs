@@ -205,7 +205,7 @@ foo (n,t) = pretty n ++ " :: " ++ pretty t ++ " "
 
 tcCall :: Maybe (Exp Name) -> Name -> [Exp Name] -> TcM (Exp Id, [Pred], Ty)
 tcCall Nothing n args 
-  = do 
+  = do
       s <- askEnv n
       (ps :=> t) <- freshInst s
       t' <- freshTyVar

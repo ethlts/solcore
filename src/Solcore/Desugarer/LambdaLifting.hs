@@ -105,8 +105,8 @@ instance LiftLambda (Exp Name) where
     = do  
         let free = vars bd \\ vars ps 
         debugInfoLambda e free 
-        (e,d) <- createLambdaType free
-        createFunction free d ps bd mt 
+        (e,d, arg, res) <- createLambdaType free
+        createFunction arg res free d ps bd mt
         pure e
   liftLambda d = pure d 
 
@@ -126,37 +126,56 @@ desugarCall me n es
         pure (Call Nothing m (Var n : es'))
 
 
-createLambdaType :: [Name] -> LiftM (Exp Name, DataTy)
+createLambdaType :: [Name] -> LiftM (Exp Name, DataTy, Name, Name)
 createLambdaType ns 
   = do 
-      n <- freshName "LambdaTy"
-      let vs = map TVar ns 
-          d = DataTy n vs [Constr n (TyVar <$> vs)]
+      n <- freshName "LambdaTy" 
+      arg <- freshName "arg"
+      res <- freshName "res"
+      let 
+          vs = map TVar ns
+          vs' = map TVar (ns ++ [arg, res]) 
+          d = DataTy n vs' [Constr n (TyVar <$> vs)]
       debugCreateLambdaType d
       addDecl (TDataDef d)
-      pure (Con n (Var <$> ns), d)
+      pure (Con n (Var <$> ns), d, arg, res)
 
-createFunction :: [Name] -> 
+createFunction :: Name -> 
+                  Name -> 
+                  [Name] -> 
                   DataTy -> 
-                  [Param Name] -> 
+                  [Param Name] ->  
                   Body Name -> 
                   Maybe Ty -> LiftM ()
-createFunction ns (DataTy n vs [(Constr m ts)]) ps bd mt 
+createFunction arg res ns dt@(DataTy n vs [(Constr m ts)]) ps bd mt 
   = do 
       f <- freshName "lambdaimpl"
       let (np, pool') = newName (namePool \\ vars ps)
-          t = TyCon n (TyVar <$> vs) 
-          ps' = Typed np t : ps 
-          bd' = [Match [Var np] [([PCon m pats], bd)]]
-          pats = map PVar ns 
-          sig = Signature [] [] f ps' mt -- XXX need to check here
-          fd = FunDef sig bd' 
+          ps1 = Untyped <$> ns
+          ps' = ps1 ++ ps
+          pl = Typed np (TyCon n (TyVar <$> vs))
+          s' = Return (Call Nothing f (Var <$> (ns ++ [arg])))
+          bd' = [Match [Var np] [([PCon m pats], [s'])]]
+          pats = map PVar ns
+          parg = Untyped arg 
+          -- XXX need to check here: lambda syntax do not allow contexts
+          sig = Signature [] [] f ps' mt 
+          sig' = Signature [] [] (Name "invoke") [pl, parg] Nothing
+          fd = FunDef sig bd
+          fd' = FunDef sig' bd'
+          targ = TyVar $ TVar arg 
+          tres = TyVar $ TVar res 
+          mtc = TyCon n (TyVar <$> vs)
+          idecl = Instance [] (Name "Invokable") [targ, tres] mtc [fd']
       debugCreateFunction fd 
       addDecl (TFunDef fd)
-createFunction _ dt _ _ _ 
+      addDecl (TInstDef idecl)
+createFunction _ _ _ dt _ _ _ 
   = throwError $ unlines [ "Impossible! Closure type does not have one constructor:"
                          , pretty dt 
                          ]
+
+
 
 debugCreateFunction :: FunDef Name -> LiftM ()
 debugCreateFunction fd 

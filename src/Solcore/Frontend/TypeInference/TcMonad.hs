@@ -2,7 +2,8 @@ module Solcore.Frontend.TypeInference.TcMonad where
 
 import Control.Monad
 import Control.Monad.Except
-import Control.Monad.State 
+import Control.Monad.State
+import Control.Monad.Writer
 
 import Data.List 
 import Data.Map (Map)
@@ -10,6 +11,7 @@ import qualified Data.Map as Map
 
 import Solcore.Frontend.Pretty.SolcorePretty hiding((<>))
 import Solcore.Frontend.Syntax
+import Solcore.Frontend.TypeInference.Id
 import Solcore.Frontend.TypeInference.NameSupply
 import Solcore.Frontend.TypeInference.TcEnv
 import Solcore.Frontend.TypeInference.TcSubst
@@ -19,10 +21,10 @@ import Solcore.Primitives.Primitives
 
 -- definition of type inference monad infrastructure 
 
-type TcM a = StateT TcEnv (ExceptT String IO) a 
+type TcM a = WriterT [TopDecl Id] (StateT TcEnv (ExceptT String IO)) a 
 
-runTcM :: TcM a -> TcEnv -> IO (Either String (a, TcEnv))
-runTcM m env = runExceptT (runStateT m env)
+runTcM :: TcM a -> TcEnv -> IO (Either String ((a, [TopDecl Id]), TcEnv))
+runTcM m env = runExceptT (runStateT (runWriterT m) env)
 
 freshVar :: TcM Tyvar 
 freshVar 
@@ -51,7 +53,9 @@ unify t t'
 
 freshInst :: Scheme -> TcM (Qual Ty)
 freshInst (Forall vs qt)
-  = renameVars vs qt
+  = renameVars vs' qt
+    where 
+      vs' = vs `union` fv qt
 
 renameVars :: HasType a => [Tyvar] -> a -> TcM a 
 renameVars vs t 

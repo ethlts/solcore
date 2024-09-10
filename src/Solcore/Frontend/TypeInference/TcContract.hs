@@ -24,7 +24,11 @@ import Solcore.Primitives.Primitives
 
 typeInfer :: CompUnit Name -> IO (Either String (CompUnit Id, TcEnv))
 typeInfer c 
-  = runTcM (tcCompUnit c) initTcEnv  
+  = do 
+      r <- runTcM (tcCompUnit c) initTcEnv  
+      case r of 
+        Left err -> pure $ Left err 
+        Right ((r1, ts), env) -> pure (Right (r1, env)) 
 
 -- type inference for a compilation unit 
 
@@ -32,10 +36,14 @@ tcCompUnit :: CompUnit Name -> TcM (CompUnit Id)
 tcCompUnit (CompUnit imps cs)
   = do 
       loadImports imps
-      mapM_ checkTopDecl cs
+      mapM_ checkTopDecl cls 
+      mapM_ checkTopDecl cs'
       cs' <- mapM tcTopDecl' cs 
       pure (CompUnit imps cs')
-    where 
+    where
+      (cls, cs') = partition isClass cs 
+      isClass (TClassDef _) = True 
+      isClass _ = False 
       tcTopDecl' d = do 
         clearSubst
         d' <- tcTopDecl d 
@@ -177,7 +185,7 @@ tcField (Field n t _)
 -- type checking instance body 
 
 tcInstance :: Instance Name -> TcM (Instance Id)
-tcInstance (Instance ctx n ts t funs) 
+tcInstance idecl@(Instance ctx n ts t funs) 
   = do
       (funs', pss', ts') <- unzip3 <$> mapM tcFunDef funs
       schs <- mapM (askEnv . sigName . funSignature) funs' 
@@ -212,9 +220,9 @@ instanceTypes (Instance ctx _ ts t funs)
 
 
 tcClass :: Class Name -> TcM (Class Id)
-tcClass (Class ctx n vs v sigs) 
+tcClass iclass@(Class ctx n vs v sigs) 
   = do
-      let ns = map sigName sigs 
+      let ns = map sigName sigs
       schs <- mapM askEnv ns 
       sigs' <- mapM tcSig (zip sigs schs)
       pure (Class ctx n vs v sigs')
@@ -263,6 +271,7 @@ tcFunDef d@(FunDef sig bd)
       sch <- askEnv (sigName sig)
       (ps :=> t) <- freshInst sch
       let t1 = foldr (:->) t' ts
+      liftIO $ putStrLn $ "Unify " ++ pretty t ++ " with " ++ pretty t1
       s <- unify t t1 `wrapError` d
       rTy <- withCurrentSubst t'
       let sig' = Signature (sigVars sig) 
@@ -486,7 +495,7 @@ checkCoverage cn ts t
 checkMethod :: Pred -> FunDef Name -> TcM () 
 checkMethod ih@(InCls n t ts) (FunDef sig _) 
   = do
-      -- getting current method signature in class 
+      -- getting current method signature in class
       st@(Forall _ (qs :=> ty)) <- askEnv (sigName sig)
       p <- maybeToTcM (unwords [ "Constraint for"
                                , unName n
