@@ -110,7 +110,7 @@ Decl : FieldDef                                    {CFieldDecl $1}
 -- type synonym 
 
 TypeSynonym :: {TySym}
-TypeSynonym : 'type' Name '=' Type                 {TySym $2 $4}
+TypeSynonym : 'type' Type '=' Type                 {TySym $2 $4}
 
 -- fields 
 

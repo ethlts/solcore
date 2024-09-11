@@ -56,7 +56,7 @@ data Constr
 
 data TySym 
   = TySym {
-      symName :: Name 
+      symName :: Ty
     , symType :: Ty 
     } deriving (Eq, Ord, Show, Data, Typeable)
 
