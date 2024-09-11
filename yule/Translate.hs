@@ -55,7 +55,9 @@ genExpr (ECall name args) = do
     funInfo <- lookupFun name
     (resultCode, resultLoc) <- coreAlloc (fun_result funInfo)
     let callExpr = YCall (fromString name) yulArgs
-    let callCode = [YAssign (flattenLhs resultLoc) callExpr]
+    let callCode = case resultLoc of  -- handle void functions
+            LocUnit -> [YExp callExpr]
+            _ -> [YAssign (flattenLhs resultLoc) callExpr]
     pure (argsCode++resultCode++callCode, resultLoc)
 genExpr e = error ("genExpr: not implemented for "++show e)
 
@@ -86,9 +88,12 @@ genStmt (SAssign name expr) = coreAssign name expr
 
 genStmt (SReturn expr) = do
     (stmts, loc) <- genExpr expr
-    resultLoc <- lookupVar "_result"
-    let stmts' = copyLocs resultLoc loc
-    pure (stmts ++ stmts')
+    case loc of
+        LocUnit -> pure (stmts ++ [YLeave])
+        _ -> do
+            resultLoc <- lookupVar "_result"
+            let stmts' = copyLocs resultLoc loc
+            pure (stmts ++ stmts' ++ [YLeave])
 
 genStmt (SBlock stmts) = withLocalEnv do genStmts stmts
 
@@ -107,11 +112,15 @@ genStmt (SMatch sty e alts) = do
             pure [YSwitch (loadLoc tag) yulAlts Nothing]
 
 genStmt (SFunction name args ret stmts) = withLocalEnv do
-    debug ["> SFunction: ", name]
+    debug ["> SFunction: ", name, " ", show args, " -> ", show ret]
     yulArgs <- placeArgs args
-    yulResult <- place "_result" ret  -- TODO: special handling of unit
+    yreturns <- case stripTypeName ret of -- FIXME: temp hack for main
+        TUnit | name == "main" -> YReturns <$> place "_result" TWord
+              | otherwise-> pure YNoReturn
+        _  -> YReturns <$> place "_result" ret
     yulBody <- genStmts stmts
-    return [YFun (fromString name) yulArgs (YReturns yulResult) yulBody]
+    debug ["< SFunction: ", name, " ", show yulArgs, " -> ", show yreturns]
+    return [YFun (fromString name) yulArgs yreturns yulBody]
     where
         placeArgs :: [Arg] -> TM [Name]
         placeArgs as = concat <$> mapM placeArg as
@@ -128,6 +137,10 @@ genStmt (SRevert s) = pure
   [ YExp $ YCall "mstore" [yulInt 0, YLit (YulString s)]
   , YExp $ YCall "revert" [yulInt 0, yulInt (length s)]
   ]
+
+genStmt (SExpr e) = do
+    (stmts, loc) <- genExpr e
+    pure stmts
 
 genStmt e = error $ "genStmt unimplemented for: " ++ show e
 

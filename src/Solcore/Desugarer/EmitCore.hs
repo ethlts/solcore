@@ -8,6 +8,7 @@ import Control.Monad.State
 import Data.List(intercalate)
 import qualified Data.Map as Map
 import Data.Maybe(fromMaybe)
+import GHC.Stack( HasCallStack )
 
 import Solcore.Frontend.Pretty.SolcorePretty
 import Solcore.Frontend.Syntax
@@ -113,7 +114,7 @@ emitFunDef (FunDef sig body) = do
   return [coreFun]
 
 translateSig :: Signature Id -> EM (CoreName, [Core.Arg], Core.Type)
-translateSig sig@(Signature n ctxt args (Just ret)) = do
+translateSig sig@(Signature vs ctxt n args (Just ret)) = do
   dataTable <- gets ecDT
   -- debug ["translateSig ", show sig]
   let name = unName n
@@ -222,9 +223,9 @@ emitExp (Var x) = do
     case Map.lookup (idName x) subst of
         Just e -> pure (e, [])
         Nothing -> pure (Core.EVar (unwrapId x), [])
-emitExp (Call Nothing f as)
-   | unwrapId f == "revert" = pure (Core.EUnit, [Core.SRevert ""] )
-   | otherwise = do
+-- special handling of revert
+emitExp (Call _ (Id "revert" _) [Lit(StrLit s)]) = pure(Core.EUnit, [Core.SRevert s])
+emitExp (Call Nothing f as) = do
     (coreArgs, codes) <- unzip <$> mapM emitExp as
     let call =  Core.ECall (unwrapId f) coreArgs
     pure (call, concat codes)
@@ -258,6 +259,7 @@ emitStmt (Let (Id name ty) mty mexp ) = do
         Nothing -> return alloc
 
 emitStmt s@(Match [scrutinee] alts) = emitMatch scrutinee alts
+emitStmt (Asm ys) = pure [Core.SAssembly ys]
 emitStmt s = errors ["emitStmt not implemented for: ", pretty s, "\n", show s]
 
 emitStmts :: [Stmt Id] -> EM [Core.Stmt]
@@ -417,7 +419,7 @@ writeln :: MonadIO m => String -> m ()
 writeln = liftIO . putStrLn
 writes :: MonadIO m => [String] -> m ()
 writes = writeln . concat
-errors :: [String] -> a
+errors :: HasCallStack => [String] -> a
 errors = error . concat
 
 debug :: [String] -> EM ()

@@ -4,7 +4,7 @@ class  a : Neg {
 }
 
 data B = F | T
-data Pair[a,b] = Pair[a,b]
+data Pair(a,b) = Pair(a,b)
 
 instance B : Neg {
   function neg (x : B) {
@@ -17,28 +17,28 @@ instance B : Neg {
 
 function fst (p) {
   match p {
-    | Pair[x,y] => return x;
+    | Pair(x,y) => return x;
   };
 }
 
 function snd(p) {
   match p {
-    | Pair[x,y] => return y;
+    | Pair(x,y) => return y;
   };
 }
 
 
-instance [a:Neg,b:Neg] => Pair[a,b]:Neg {
+instance (a:Neg,b:Neg) => Pair(a,b):Neg {
   function neg(p) {
-    return Pair[neg (fst(p)), neg(snd (p))];
+    return Pair(neg (fst(p)), neg(snd (p)));
   }
 }
 
 /*
-instance [a:Neg,b:Neg] => Pair[a,b]:Neg {
+instance (a:Neg,b:Neg) => Pair(a,b):Neg {
   function neg(p) {
     match p {
-      | Pair[a,b] => return Pair[neg(a), neg(b)];
+      | Pair(a,b) => return Pair(neg(a), neg(b));
     };
   }
 }
@@ -59,5 +59,5 @@ contract NegPair {
   };
 }
 
- function main() { return  fromB(fst(neg(Pair[F,T]))); }
+ function main() { return  fromB(fst(neg(Pair(F,T)))); }
 }

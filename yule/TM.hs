@@ -45,7 +45,7 @@ runTM :: Options -> TM a -> IO a
 runTM options m = do
     counter <- newIORef 0
     vars <- newIORef Map.empty
-    funs <- newIORef Map.empty
+    funs <- newIORef (Map.fromList builtinFuns)
     runRIO m (CEnv counter vars funs options)
 
 getCounter :: TM Int
@@ -124,3 +124,18 @@ withLocalEnv m = do
     putVarEnv vars
     putFunEnv funs
     return x
+
+builtinFuns :: [(String, FunInfo)]
+builtinFuns =
+    [ ("stop", FunInfo [] Core.TUnit)
+    , ("add", FunInfo [Core.TWord, Core.TWord] Core.TWord)
+    , ("mul", FunInfo [Core.TWord, Core.TWord] Core.TWord)
+    , ("sub", FunInfo [Core.TWord, Core.TWord] Core.TWord)
+    , ("div", FunInfo [Core.TWord, Core.TWord] Core.TWord)
+    , ("sdiv", FunInfo [Core.TWord, Core.TWord] Core.TWord)
+    , ("mod", FunInfo [Core.TWord, Core.TWord] Core.TWord)
+    , ("smod", FunInfo [Core.TWord, Core.TWord] Core.TWord)
+    , ("addmod", FunInfo [Core.TWord, Core.TWord, Core.TWord] Core.TWord)
+    , ("mulmod", FunInfo [Core.TWord, Core.TWord, Core.TWord] Core.TWord)
+    , ("exp", FunInfo [Core.TWord, Core.TWord] Core.TWord)
+    ]

@@ -21,4 +21,4 @@ instance HasType Id where
 instance Pretty Id  where 
   ppr (Id n t) = ppr n <+> if debug then text "::" <+> ppr t else empty 
 
-debug = True 
+debug = False 

@@ -1,0 +1,16 @@
+
+class self : Invokable(args, ret) {
+    function invoke (s:self,  a:args) -> ret;
+  }
+
+  function id(x) {
+    return x ;
+  }
+
+  data IdToken(a) = IdToken 
+
+instance IdToken(a) : Invokable(a,a) {
+  function invoke(token: IdToken(a), a) -> a {
+    return id(a);
+  }
+}

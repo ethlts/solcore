@@ -118,7 +118,7 @@ checkDecl (CMutualDecl ds)
 checkDecl _ = return ()
 
 extSignature :: Signature Name -> TcM ()
-extSignature (Signature n ctx ps t)
+extSignature (Signature _ ctx n ps t)
   = do
       argTys <- mapM tyParam ps
       t' <- maybe freshTyVar pure t
@@ -165,7 +165,6 @@ tcDecl (CDataDecl d) = pure (CDataDecl d)
 tcField :: Field Name -> TcM (Field Id)
 tcField d@(Field n t (Just e)) 
   = do
-      -- FIXME: Should we return the constraints?
       (e', ps', t') <- tcExp e 
       s <- mgu t t' `wrapError` d 
       extEnv n (monotype t)
@@ -180,13 +179,37 @@ tcField (Field n t _)
 tcInstance :: Instance Name -> TcM (Instance Id)
 tcInstance (Instance ctx n ts t funs) 
   = do
-      (funs', _, ts') <- unzip3 <$> mapM tcFunDef funs
-      schs <- mapM (askEnv . sigName . funSignature) funs 
-      let ts1 = map (\ (Forall _ (_ :=> t)) -> t) schs 
-          applyT :: Subst -> Ty -> Ty 
-          applyT s t = apply s t
+      (funs', pss', ts') <- unzip3 <$> mapM tcFunDef funs
+      schs <- mapM (askEnv . sigName . funSignature) funs' 
+      let 
+          ts1 = map (\ (Forall _ (_ :=> t)) -> t) schs
+          s' = renameSubst1 ts'
       s <- unifyTypes ts' ts1
-      pure $ everywhere (mkT (applyT s)) $ Instance ctx n ts t funs'
+      let ist = apply s' (Instance ctx n ts t funs')
+      pure ist
+
+renameSubst :: [Ty] -> Subst 
+renameSubst ts 
+  = Subst (zip vs' vs) 
+    where 
+      vs = map TyVar (fv ts)
+      vs' = map TVar namePool
+
+renameSubst1 :: [Ty] -> Subst 
+renameSubst1 ts 
+  = Subst (zip vs vs') 
+    where 
+      vs = fv ts
+      vs' = map (TyVar . TVar) namePool
+
+
+
+instanceTypes :: Instance Id -> [Ty]
+instanceTypes (Instance ctx _ ts t funs) 
+  = foldr union [] [concatMap ctxTypes ctx, t : ts]  
+    where 
+      ctxTypes (InCls _ x xs) = x : xs  
+
 
 tcClass :: Class Name -> TcM (Class Id)
 tcClass (Class ctx n vs v sigs) 
@@ -203,8 +226,9 @@ tcSig (sig, (Forall _ (_ :=> t)))
           param (Typed n t) t1 = Typed (Id n t1) t1 
           param (Untyped n) t1 = Typed (Id n t1) t1
           params' = zipWith param (sigParams sig) ts
-      pure (Signature (sigName sig)
+      pure (Signature (sigVars sig)
                       (sigContext sig)
+                      (sigName sig)
                       params'
                       (Just r))
 
@@ -241,11 +265,13 @@ tcFunDef d@(FunDef sig bd)
       let t1 = foldr (:->) t' ts
       s <- unify t t1 `wrapError` d
       rTy <- withCurrentSubst t'
-      let sig' = Signature (sigName sig)
+      let sig' = Signature (sigVars sig) 
                            (sigContext sig) 
+                           (sigName sig)
                            params' 
                            (Just rTy)
-      pure (FunDef sig' bd', ps ++ ps1, t1)
+      ps2 <- reduceContext (ps ++ ps1)
+      pure (apply s $ FunDef sig' bd', apply s ps2, apply s t1)
 
 scanFun :: FunDef Name -> TcM (FunDef Name)
 scanFun (FunDef sig bd)
@@ -253,10 +279,10 @@ scanFun (FunDef sig bd)
     where 
       f (Typed n t) = pure $ Typed n t
       f (Untyped n) = Typed n <$> freshTyVar
-      fillSignature (Signature ctx n ps t)
+      fillSignature (Signature vs ctx n ps t)
         = do 
             ps' <- mapM f ps 
-            pure (Signature ctx n ps' t)
+            pure (Signature vs ctx n ps' t)
 
 -- type generalization 
 
@@ -367,26 +393,35 @@ checkClasses = mapM_ checkClass
 
 checkClass :: Class Name -> TcM ()
 checkClass (Class ps n vs v sigs) 
-  = mapM_ checkSignature sigs 
+  = do 
+      let p = InCls n (TyVar v) (TyVar <$> vs)
+          ms' = map sigName sigs 
+      addClassInfo n (length vs) ms' p
+      mapM_ (checkSignature p) sigs 
     where
-      checkSignature sig@(Signature f ctx ps mt)
-        = do 
+      checkSignature p sig@(Signature vs ctx f ps mt)
+        = do
             pst <- mapM tyParam ps
-            t' <- maybe freshTyVar pure mt 
-            unless (null ctx && v `elem` fv (funtype pst t'))
-                   (throwError $ "invalid class declaration: " ++ unName n)
-            addClassMethod (InCls n (TyVar v) (TyVar <$> vs))
-                           sig 
+            t' <- maybe freshTyVar pure mt
+            let ft = funtype pst t' 
+            unless (null ctx && v `elem` fv ft)
+                   (signatureError n v sig ft)
+            addClassMethod p sig 
+
+addClassInfo :: Name -> Arity -> [Method] -> Pred -> TcM ()
+addClassInfo n ar ms p
+  = modify (\ env -> 
+      env{ classTable = Map.insert n (ar, ms, p) (classTable env)})
 
 addClassMethod :: Pred -> Signature Name -> TcM ()
-addClassMethod p@(InCls _ _ _) (Signature f _ ps t) 
+addClassMethod p@(InCls _ _ _) (Signature _ _ f ps t) 
   = do
       tps <- mapM tyParam ps
       t' <- maybe freshTyVar pure t
       let ty = funtype tps t'
           vs = fv ty
       extEnv f (Forall vs ([p] :=> ty))
-addClassMethod p@(_ :~: _) (Signature n _ _ _) 
+addClassMethod p@(_ :~: _) (Signature _ _ n _ _) 
   = throwError $ unlines [
                     "Invalid constraint:"
                   , pretty p 
@@ -488,3 +523,36 @@ checkMeasure ps c
     else throwError $ unlines [ "Instance "
                               , pretty c
                               , "does not satisfy the Patterson conditions."]
+
+-- error for class definitions 
+
+signatureError :: Name -> Tyvar -> Signature Name -> Ty -> TcM ()
+signatureError n v (Signature _ ctx f _ _) t
+  | null ctx = throwError $ unlines ["Impossible! Class context is empty in function:" 
+                                    , pretty f
+                                    , "which is a membre of the class declaration:"
+                                    , pretty n 
+                                    ]
+  | v `notElem` fv t = throwError $ unlines ["Main class type variable"
+                                            , pretty v
+                                            , "does not occur in type"
+                                            , pretty t 
+                                            , "which is the defined type for function"
+                                            , pretty f 
+                                            , "that is a member of class definition"
+                                            , pretty n 
+                                            ]
+
+-- Instances for elaboration 
+
+instance HasType (FunDef Id) where 
+  apply s (FunDef sig bd)
+    = FunDef (apply s sig) (apply s bd)
+  fv (FunDef sig bd)
+    = fv sig `union` fv bd
+
+instance HasType (Instance Id) where 
+  apply s (Instance ctx n ts t funs) 
+    = Instance (apply s ctx) n (apply s ts) (apply s t) (apply s funs)
+  fv (Instance ctx n ts t funs) 
+    = fv ctx `union` fv (t : ts) `union` fv funs

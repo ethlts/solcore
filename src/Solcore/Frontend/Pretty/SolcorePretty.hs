@@ -25,8 +25,7 @@ pretty :: Pretty a => a -> String
 pretty = render . ppr
 
 instance Pretty a => Pretty (Qual a) where 
-  ppr (ps :=> t) 
-    = pprContext True ps <+> ppr t
+  ppr (ps :=> t) = pprContext ps <+> ppr t
 
 instance Pretty ([Pred],Ty) where 
   ppr (x, y) = ppr (x :=> y)
@@ -94,7 +93,7 @@ instance Pretty TySym where
 instance Pretty Constr where
   ppr (Constr n []) = ppr n <> text " "
   ppr (Constr n ts)
-    = ppr n <> brackets (pprConstrArgs ts)
+    = ppr n <> parens (pprConstrArgs ts)
 
 pprConstrArgs :: [Ty] -> Doc  
 pprConstrArgs [] = empty 
@@ -103,7 +102,7 @@ pprConstrArgs ts = commaSep $ map ppr ts
 instance Pretty a => Pretty (Class a) where 
   ppr (Class ps n vs v sigs)
     = text "class " <+> 
-      pprContext True ps <+> 
+      pprContext ps <+> 
       ppr v <+> 
       colon <+> 
       ppr n <+> 
@@ -116,17 +115,17 @@ pprSignatures
   = vcat . map ppr
 
 instance Pretty a => Pretty (Signature a) where 
-  ppr (Signature n ctx ps ty)
+  ppr (Signature vs ctx n ps ty)
     = text "function" <+> 
       ppr n           <+>
-      pprContext False ctx  <+> 
+      pprContext ctx  <+> 
       pprParams ps <+> 
       pprRetTy ty 
 
 instance Pretty a => Pretty (Instance a) where 
   ppr (Instance ctx n tys ty funs)
     = text "instance" <+> 
-      pprContext True ctx  <+> 
+      pprContext ctx  <+> 
       ppr ty          <+>
       colon           <+> 
       ppr n           <+> 
@@ -135,10 +134,10 @@ instance Pretty a => Pretty (Instance a) where
       nest 3 (pprFunBlock funs) $$ 
       rbrace 
 
-pprContext :: Bool -> [Pred] -> Doc 
-pprContext _ [] = empty 
-pprContext b ps 
-  = (parens (commaSep $ map ppr ps)) <+> if b then text "=>" else empty 
+pprContext :: [Pred] -> Doc 
+pprContext [] = empty 
+pprContext ps 
+  = (parens (commaSep $ map ppr ps)) <+> text "=>"
 
 instance Pretty [Pred] where 
   ppr = hsep . map ppr 
@@ -216,7 +215,7 @@ instance Pretty a => Pretty (Exp a) where
   ppr (Var v) = ppr v 
   ppr (Con n es) 
     = ppr n <> if null es then empty 
-               else (brackets $ commaSep $ map ppr es)
+               else (parens $ commaSep $ map ppr es)
   ppr (Lit l) = ppr l 
   ppr (Call e n es) 
     = pprE e <> ppr n <> (parens $ commaSep $ map ppr es)
@@ -236,7 +235,7 @@ instance Pretty a => Pretty (Pat a) where
     = ppr n
   ppr (PCon n []) = ppr n
   ppr (PCon n ps@(_ : _)) 
-    = ppr n <> (brackets $ commaSep $ map ppr ps )
+    = ppr n <> (parens $ commaSep $ map ppr ps )
   ppr PWildcard 
     = text "_"
   ppr (PLit l)
@@ -259,12 +258,12 @@ instance Pretty Scheme where
   ppr (Forall vs ty) = ppr' (Forall vs ty) 
     where 
       ppr' (Forall [] (ctx :=> t))
-        = pprContext True ctx <+> ppr t
+        = pprContext ctx <+> ppr t
       ppr' (Forall vs (ctx :=> t)) 
         = text "forall"       <+> 
           hsep (map ppr vs)   <+>
           text "."            <+> 
-          pprContext True ctx <+>
+          pprContext ctx      <+>
           ppr t 
 
 instance Pretty Ty where 
@@ -279,7 +278,7 @@ instance Pretty Ty where
 pprTyParams :: [Ty] -> Doc 
 pprTyParams [] = empty 
 pprTyParams ts 
-  = brackets (commaSep (map ppr ts))
+  = parens (commaSep (map ppr ts))
 
 
 instance Pretty Subst where 

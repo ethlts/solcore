@@ -81,11 +81,13 @@ data Class a
 
 data Signature a 
   = Signature {
-      sigName :: Name
+      sigVars :: [Tyvar]
     , sigContext :: [Pred]
+    , sigName :: Name
     , sigParams :: [Param a]
     , sigReturn :: Maybe Ty 
     } deriving (Eq, Ord, Show, Data, Typeable)
+
 
 data Instance a 
   = Instance {

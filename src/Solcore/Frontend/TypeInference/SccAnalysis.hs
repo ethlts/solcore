@@ -194,6 +194,7 @@ instance FreeVars (Stmt Name) where
   fv (Return e) = fv e 
   fv (Match es eqns) = fv es `union` fv eqns 
   fv (Asm blk) = fv blk
+  fv _ = []
 
 instance FreeVars YulStmt where
   fv (YBlock blk) = fv blk 

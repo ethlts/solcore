@@ -6,7 +6,7 @@ import qualified Data.Map as Map
 
 import Options.Applicative
 
-import Solcore.Desugarer.Defunctionalization
+import Solcore.Desugarer.LambdaLifting
 import Solcore.Desugarer.MatchCompiler
 import Solcore.Frontend.Lexer.SolcoreLexer
 import Solcore.Frontend.Parser.SolcoreParser
@@ -26,34 +26,38 @@ pipeline = do
   content <- readFile (fileName opts)
   let r1 = runAlex content parser
   withErr r1 $ \ ast -> do
-    r2 <- sccAnalysis ast
-    withErr r2 $ \ ast' -> do
-      r3 <- typeInfer ast'
-      withErr r3 $ \ (c', env) -> do
-        when verbose $ do 
+    withErr (lambdaLifting ast) $ \ ast2 -> do 
+      when verbose $ do 
+        putStrLn "AST after lambda lifting"
+        putStrLn $ pretty ast2 
+      r2 <- sccAnalysis ast2 
+      withErr r2 $ \ ast' -> do
+        r3 <- typeInfer ast'
+        withErr r3 $ \ (c', env) -> do
+          when verbose $ do 
             putStrLn "Annotated AST:"
             putStrLn $ pretty c' 
             putStrLn "Inferred types:"
             mapM_ putStrLn (reverse $ logs env)
-        r4 <- matchCompiler c'
-        withErr r4 $ \ res -> do
-          when (verbose || optDumpDS opts) do
-            putStrLn "Desugared contract:"
-            putStrLn (pretty res)
-          r5 <- defunctionalize env res
-          withErr r5 $ \ r6 -> do
-            when (verbose || optDumpDF opts) do
-              putStrLn "Defunctionalized contract:"
-              putStrLn (pretty r6)
+          r4 <- matchCompiler c'
+          withErr r4 $ \ res -> do
+            when (verbose || optDumpDS opts) do
+              putStrLn "Desugared contract:"
+              putStrLn (pretty res)
+          -- r5 <- defunctionalize env res
+          -- withErr r5 $ \ r6 -> do
+          --   when (verbose || optDumpDF opts) do
+          --     putStrLn "Defunctionalized contract:"
+          --     putStrLn (pretty r6)
             unless (optNoSpec opts) do
-              r7 <- specialiseCompUnit r6 (optDebugSpec opts) env
+              r7 <- specialiseCompUnit res (optDebugSpec opts) env
               when (optDumpSpec opts) do
-                putStrLn "Specialised contract:"
-                putStrLn (pretty r7)
+                  putStrLn "Specialised contract:"
+                  putStrLn (pretty r7)
               r8 <- emitCore (optDebugCore opts) env r7
               when (optDumpCore opts) do
-                putStrLn "Core contract(s):"
-                forM_ r8 (putStrLn . pretty)
+                  putStrLn "Core contract(s):"
+                  forM_ r8 (putStrLn . pretty)
 
 
 withErr :: Either String a -> (a -> IO ()) -> IO ()

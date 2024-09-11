@@ -1,5 +1,6 @@
 
 {-# OPTIONS_GHC -Wincomplete-patterns #-}
+{-# LANGUAGE InstanceSigs #-}
 module Language.Core
   ( Expr(..), Stmt(..), Arg(..), Alt(..), Con(..), Contract(..), Core(..)
   , module Language.Core.Types
@@ -46,7 +47,9 @@ data Stmt
     -- deriving Show
 
 data Arg = TArg Name Type
-instance Show Stmt where show = render . ppr
+instance Show Arg where show = render . ppr
+instance Show Stmt where show :: Stmt -> String
+                         show = render . ppr
 
 data Alt = Alt Con Name Stmt
 data Con = CInl | CInr | CInK Int

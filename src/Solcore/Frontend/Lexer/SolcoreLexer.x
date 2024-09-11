@@ -45,6 +45,7 @@ tokens :-
         <0>    "="                               {simpleToken TEq}
         <0>    ":="                              {simpleToken TYAssign}
         <0>    "class"                           {simpleToken TClass}
+        <0>    "forall"                          {simpleToken TForall}
         <0>    "instance"                        {simpleToken TInstance}
         <0>    "if"                              {simpleToken TIf}
         <0>    "for"                             {simpleToken TFor}
@@ -145,6 +146,7 @@ data Lexeme
   | TDot
   | TColon
   | TComma
+  | TForall 
   | TClass 
   | TInstance 
   | TData 
@@ -199,6 +201,7 @@ mkIdent (st, _, _, str) len
       "for" -> return $ Token (position st) TFor 
       "default" -> return $ Token (position st) TDefault
       "type" -> return $ Token (position st) TType
+      "forall" -> return $ Token (position st) TForall
       _ -> return $ Token (position st) (TIdent $ take len str)
 
 mkCon :: AlexAction Token 

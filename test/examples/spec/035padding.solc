@@ -1,9 +1,9 @@
 contract Option {
-  data Option[a] = None | Some[a]
+  data Option(a) = None | Some(a)
 
   function maybe(n, o) {
     match o {
-      | Some[x] => return x;
+      | Some(x) => return x;
       | None => return n;
     };
   }

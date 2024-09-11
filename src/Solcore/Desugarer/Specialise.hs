@@ -9,6 +9,7 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Data.List(intercalate)
 import qualified Data.Map as Map
+import GHC.Stack
 import Solcore.Frontend.Pretty.SolcorePretty
 import Solcore.Frontend.Syntax
 import Solcore.Frontend.TypeInference.Id ( Id(..) )
@@ -69,6 +70,8 @@ writeln :: String -> SM ()
 writeln = whenDebug . liftIO  . putStrLn
 writes :: [String] -> SM ()
 writes = writeln . concat
+
+errors :: HasCallStack => [String] -> SM a
 errors = error . concat
 
 panics :: MonadIO m => [String] -> m a
@@ -80,6 +83,9 @@ nopanics :: MonadIO m => [String] -> m a
 nopanics msgs = do
     liftIO $ putStrLn $ concat msgs
     liftIO exitFailure
+
+prettys :: Pretty a => [a] -> String
+prettys = render . brackets . commaSep . map ppr
 
 -- | `withLocalState` runs a computation with a local state
 -- local changes are discarded, with the exception of the `specTable`
@@ -133,7 +139,7 @@ getSpSubst :: SM Subst
 getSpSubst = gets spSubst
 
 extSpSubst :: Subst -> SM ()
-extSpSubst subst = modify $ \s -> s { spSubst = subst <> spSubst s }
+extSpSubst subst = modify $ \s -> s { spSubst =  spSubst s <> subst }
 
 restrictSpSubst :: [Tyvar] -> SM ()
 restrictSpSubst ns = modify prune where
@@ -234,26 +240,31 @@ specExp e ty = atCurrentSubst e -- FIXME
 specCall :: Id -> [TcExp] -> Ty -> SM (Id, [TcExp])
 specCall i@(Id (Name "revert") e) args ty = pure (i, args)  -- FIXME
 specCall i args ty = do
-  -- writes ["> specCall: ", show i, show args, " : ", pretty ty]
   i' <- atCurrentSubst i
   ty' <- atCurrentSubst ty
-  guardSimpleType ty'
+  -- debug ["> specCall: ", pretty i', show args, " : ", pretty ty']
   let name = idName i'
   let argTypes = map typeOfTcExp args
-  let typedArgs = zip args argTypes
+  argTypes' <- atCurrentSubst argTypes
+  let typedArgs = zip args argTypes'
   args' <- forM typedArgs (uncurry specExp)
-  let funType = foldr (:->) ty argTypes
-  -- writes ["! specCall: ", show name, " : ", pretty funType]
+  let funType = foldr (:->) ty' argTypes'
+  debug ["! specCall: ", show name, " : ", pretty funType]
   mres <- lookupResolution name funType
   case mres of
     Just (fd, ty, phi) -> do
-      writes ["resolution: ", show name, " : ", pretty ty, "@", pretty phi]
+      writes ["< resolution: ", show name, " : ", pretty ty, "@", pretty phi]
       extSpSubst phi
+      -- ty' <- atCurrentSubst ty
+      subst <- getSpSubst
+      let ty' = apply subst ty
+      ensureClosed ty' (Call Nothing i args) subst
       name' <- specFunDef fd
-      -- writes ["< specCall: ", pretty name']
-      return (Id name' ty', args')
+      debug ["< specCall: ", pretty name']
+      args'' <- atCurrentSubst args'
+      return (Id name' ty', args'')
     Nothing -> do
-      writes ["! specCall: no resolution found for ", show name, " : ", pretty funType]
+      debug ["! specCall: no resolution found for ", show name, " : ", pretty funType]
       return (i, args')
   where
     guardSimpleType :: Ty -> SM ()
@@ -282,6 +293,9 @@ specFunDef fd = withLocalState do
     Just fd' -> return name'
     Nothing -> do
       let sig' = apply subst (funSignature fd)
+      -- add a placeholder first to break loops
+      let placeholder = FunDef sig' []
+      addSpecialisation name' placeholder
       body' <- specBody (funDefBody fd)
       let fd' = FunDef sig'{sigName = name'} body'
       debug ["! specFunDef: adding specialisation ", show name', " : ", pretty ty']
@@ -291,6 +305,7 @@ specFunDef fd = withLocalState do
 specBody :: [Stmt Id] -> SM [Stmt Id]
 specBody = mapM specStmt
 
+{-
 ensureSimple ty' stmt subst = case ty' of
     TyVar _ -> panics [ "specStmt(",pretty stmt,"): polymorphic return type: "
                       ,  pretty ty', " subst=", pretty subst]
@@ -299,12 +314,21 @@ ensureSimple ty' stmt subst = case ty' of
                       ,"\nIn:\n", show stmt
                       ]
     _ -> return ()
+-}
+
+-- | `ensureClosed` checks that a type is closed, i.e. has no free type variables
+ensureClosed :: Pretty a => Ty -> a -> Subst ->  SM ()
+ensureClosed ty ctxt subst = do
+  let tvs = fv ty
+  unless (null tvs) $ panics ["spec(", pretty ctxt,"): free type vars in ", show ty, ": ", show tvs
+                             , " @ subst=", pretty subst]
+
 specStmt :: Stmt Id -> SM(Stmt Id)
 specStmt stmt@(Return e) = do
   subst <- getSpSubst
   let ty = typeOfTcExp e
   let ty' = apply subst ty
-  ensureSimple ty' stmt subst
+  ensureClosed ty' stmt subst
   -- writes ["> specExp (Return): ", pretty e," : ", pretty ty, " ~> ", pretty ty']
   e' <- specExp e ty'
   -- writes ["< specExp (Return): ", pretty e']
@@ -318,7 +342,7 @@ specStmt stmt@(Var i := e) = do
   let ty' = idType i'
   debug ["specStmt (:=): ", pretty i, " : ", pretty (idType i)
         , " @ ", pretty subst, "~>'", pretty ty']
-  ensureSimple ty' stmt subst
+  ensureClosed ty' stmt subst
   e' <- specExp e ty'
   debug ["< specExp (:=): ", pretty e']
   return $ Var i' := e'
@@ -328,7 +352,7 @@ specStmt stmt@(Let i mty mexp) = do
   -- debug ["specStmt (Let): ", pretty i, " : ", pretty (idType i), " @ ", pretty subst]
   i' <- atCurrentSubst i
   let ty' = idType i'
-  ensureSimple ty' stmt subst
+  ensureClosed ty' stmt subst
   mty' <- atCurrentSubst mty
   case mexp of
     Nothing -> return $ Let i' mty' Nothing
@@ -339,14 +363,16 @@ specStmt (StmtExp e) = do
   e' <- specExp e ty
   return $ StmtExp e'
 
+specStmt (Asm ys) = pure (Asm ys)
 specStmt stmt = errors ["specStmt not implemented for: ", show stmt]
 
 specMatch :: [Exp Id] -> [([Pat Id], [Stmt Id])] -> SM (Stmt Id)
 specMatch exps alts = do
   subst <- getSpSubst
-  debug ["specMatch, scrutinee: ", show exps, " @ ", pretty subst]
+  debug ["> specMatch, scrutinee: ", show exps, " @ ", pretty subst]
   exps' <- specScruts exps
   alts' <- forM alts specAlt
+  debug ["< specMatch, alts': ", show alts']
   return $ Match exps' alts'
   where
     specAlt (pat, body) = do
