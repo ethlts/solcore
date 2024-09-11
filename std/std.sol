@@ -7,7 +7,7 @@
 
 // Basics
 
-type Proxy[t] = Unit
+data Proxy(t) = Proxy
 
 // Type Classification
 
@@ -19,26 +19,26 @@ class t:ValueTy {
 
 // Memory Layout
 
-get_free_memory = {
+function get_free_memory() -> Word {
     let res : Word;
     assembly {
         res := mload(0x40)
     };
     return res;
-};
+}
 
-set_free_memory loc = {
+function set_free_memory(loc : Word) {
     assembly {
         mstore(0x40, loc)
     };
-};
+}
 
 //
 
 
 // References
 
-type Calldata[t] = Word;
+type Calldata(t) = Word;
 type Memory[t] = Word;
 type Storage[t] = Word;
 type Returndata[t] = Word;
