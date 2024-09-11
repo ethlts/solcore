@@ -3,6 +3,7 @@
 module Solcore.Frontend.Lexer.SolcoreLexer where
 
 import Control.Monad
+import Numeric (readHex)
 }
 
 
@@ -13,12 +14,14 @@ $lower = [a-z]    -- lower case chars
 $upper = [A-Z]    -- upper case chars
 $special = [\_]   -- special characters
 $alpha = [a-zA-Z] -- alphabetic characters
+$hexdig = [0-9A-Fa-f]
 
 -- second RE macros
 
 @identifier = $lower[$alpha $special $digit]* -- identifiers
 @tycon      = $upper[$alpha $special $digit]* -- type constructor
 @number     = $digit+
+@hexlit     = 0x$hexdig+
 
 
 -- tokens declarations
@@ -78,6 +81,7 @@ tokens :-
         <0>    @tycon                            {mkCon}
         <0>    @identifier                       {mkIdent}
         <0>    @number                           {mkNumber}
+        <0>    @hexlit                           {mkHexlit}
 
         -- string literals 
 
@@ -138,6 +142,7 @@ data Token
 data Lexeme    
   = TIdent { unIdent :: String }
   | TTycon { unCon :: String }
+  -- TODO: this should be able to support 256bit literals (i.e. change to Integer or Word256 or smth...)
   | TNumber { unNum :: Int }
   | TString { unStr :: String }
   | TContract 
@@ -213,8 +218,17 @@ mkNumber :: AlexAction Token
 mkNumber (st, _, _, str) len 
   = pure $ Token (position st) (TNumber $ read $ take len str)
 
-simpleToken :: Lexeme -> AlexAction Token 
-simpleToken lx (st, _, _, _) len 
+mkHexlit :: AlexAction Token
+mkHexlit (st, _, _, str) len
+  = pure $ Token (position st) (TNumber $ parseHex $ take len str)
+
+parseHex :: String -> Int
+parseHex str = case readHex (drop 2 str) of
+    [(n, "")] -> n
+    _         -> error "impossible :)"
+
+simpleToken :: Lexeme -> AlexAction Token
+simpleToken lx (st, _, _, _) len
   = return $ Token (position st) lx
 
 -- string literals 
