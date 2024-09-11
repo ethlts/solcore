@@ -406,12 +406,10 @@ OptSemi : ';'                                      { () }
 
 {
 parseError :: Token -> Alex a
-parseError _ 
-  = do 
-        (AlexPn _ line column, _, _, _) <- alexGetInput
-        alexError $ "Parse error at line " ++ show line ++ 
-                    ", column " ++ show column
+parseError (Token (line, col) lexeme)
+  = alexError $ "Parse error while processing lexeme: " ++ show lexeme
+                ++ "\n at line " ++ show line ++ ", column " ++ show col
 
-lexer :: (Token -> Alex a) -> Alex a 
+lexer :: (Token -> Alex a) -> Alex a
 lexer = (=<< alexMonadScan)
 }
