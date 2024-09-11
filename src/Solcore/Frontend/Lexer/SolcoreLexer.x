@@ -8,15 +8,16 @@ import Control.Monad
 
 %wrapper "monadUserState"
 
-$digit = 0-9            -- digits
-$lower = [a-z \_]       -- lower case chars 
-$upper = [A-Z]          -- upper case chars
-$alpha = [a-zA-Z]       -- alphabetic characters
+$digit = 0-9      -- digits
+$lower = [a-z]    -- lower case chars
+$upper = [A-Z]    -- upper case chars
+$special = [\_]   -- special characters
+$alpha = [a-zA-Z] -- alphabetic characters
 
 -- second RE macros
 
-@identifier = $lower[$alpha $digit]* -- identifiers
-@tycon      = $upper[$alpha $digit]* -- type constructor
+@identifier = $lower[$alpha $special $digit]* -- identifiers
+@tycon      = $upper[$alpha $special $digit]* -- type constructor
 @number     = $digit+
 
 
