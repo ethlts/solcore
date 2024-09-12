@@ -48,6 +48,7 @@ data TcEnv
                                -- used to type check calls.
     , subst :: Subst           -- Current substitution
     , nameSupply :: NameSupply -- Fresh name supply
+    , counter :: Int           -- used to generate new names 
     , logs :: [String]         -- Logging
     , enableLog :: Bool        -- Enable logging?
     , enableCoverage :: Bool   -- Enable coverage checking?
@@ -61,8 +62,9 @@ initTcEnv = TcEnv primCtx
                   primTypeEnv
                   primClassEnv 
                   Nothing 
-                  mempty 
-                  namePool 
+                  mempty
+                  namePool
+                  0
                   []
                   True 
                   True 

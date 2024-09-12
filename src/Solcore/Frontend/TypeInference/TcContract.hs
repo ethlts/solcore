@@ -28,7 +28,8 @@ typeInfer c
       r <- runTcM (tcCompUnit c) initTcEnv  
       case r of 
         Left err -> pure $ Left err 
-        Right ((r1, ts), env) -> pure (Right (r1, env)) 
+        Right (((CompUnit imps ds), ts), env) -> 
+          pure (Right ((CompUnit imps (ds ++ ts)), env)) 
 
 -- type inference for a compilation unit 
 
@@ -257,21 +258,45 @@ tcBindGroup binds
       let names = map (sigName . funSignature) funs 
       let p (x,y) = pretty x ++ " :: " ++ pretty y
       mapM_ (uncurry extEnv) (zip names schs)
+      mapM_ generateDecls (zip funs' schs)
       info ["Results: ", unlines $ map p $ zip names schs]
       pure funs'
 
+generateDecls :: (FunDef Id, Scheme) -> TcM () 
+generateDecls ((FunDef sig bd), sch) 
+  = do
+      dt <- createUniqueType (sigName sig) sch 
+      pure ()
+
+createUniqueType :: Name -> Scheme -> TcM (Maybe (TopDecl Id)) 
+createUniqueType (Name n) (Forall vs _)
+  | isLambdaGenerated n = pure Nothing 
+  | otherwise 
+    = do
+        m <- incCounter 
+        let nt = Name $ "Type" ++ n ++ show m
+            dc = Constr nt []
+            dt = TDataDef (DataTy nt vs [dc])
+        writeDecl dt
+        pure (Just dt)
+
+isLambdaGenerated :: String -> Bool 
+isLambdaGenerated n 
+  = "lambdaimpl" `isPrefixOf` n
 
 -- type checking a single bind
 
 tcFunDef :: FunDef Name -> TcM (FunDef Id, [Pred], Ty)
 tcFunDef d@(FunDef sig bd) 
   = withLocalEnv do
+      -- checking if the function isn't defined 
+      te <- gets ctx 
+      when (Map.member (sigName sig) te) (duplicatedFunDef (sigName sig))
       (params', ts) <- unzip <$> mapM addArg (sigParams sig)
       (bd', ps1, t') <- tcBody bd
       sch <- askEnv (sigName sig)
       (ps :=> t) <- freshInst sch
       let t1 = foldr (:->) t' ts
-      liftIO $ putStrLn $ "Unify " ++ pretty t ++ " with " ++ pretty t1
       s <- unify t t1 `wrapError` d
       rTy <- withCurrentSubst t'
       let sig' = Signature (sigVars sig) 
@@ -419,8 +444,11 @@ checkClass (Class ps n vs v sigs)
 
 addClassInfo :: Name -> Arity -> [Method] -> Pred -> TcM ()
 addClassInfo n ar ms p
-  = modify (\ env -> 
-      env{ classTable = Map.insert n (ar, ms, p) (classTable env)})
+  = do 
+      ct <- gets classTable 
+      when (Map.member n ct) (duplicatedClassDecl n)
+      modify (\ env -> 
+        env{ classTable = Map.insert n (ar, ms, p) (classTable env)})
 
 addClassMethod :: Pred -> Signature Name -> TcM ()
 addClassMethod p@(InCls _ _ _) sig@(Signature _ ctx f ps t) 
@@ -495,6 +523,9 @@ checkCoverage cn ts t
 checkMethod :: Pred -> FunDef Name -> TcM () 
 checkMethod ih@(InCls n t ts) (FunDef sig _) 
   = do
+      -- checking if the method is already defined 
+      te <- gets ctx 
+      when (Map.member (sigName sig) te) (duplicatedClassMethod (sigName sig))
       -- getting current method signature in class
       st@(Forall _ (qs :=> ty)) <- askEnv (sigName sig)
       p <- maybeToTcM (unwords [ "Constraint for"
@@ -552,6 +583,19 @@ signatureError n v sig@(Signature _ ctx f _ _) t
                                             , "that is a member of class definition"
                                             , pretty n 
                                             ]
+
+duplicatedClassDecl :: Name -> TcM ()
+duplicatedClassDecl n 
+  = throwError $ "Duplicated class definition:" ++ pretty n
+
+duplicatedClassMethod :: Name -> TcM ()
+duplicatedClassMethod n 
+  = throwError $ "Duplicated class method definition:" ++ pretty n 
+
+duplicatedFunDef :: Name -> TcM () 
+duplicatedFunDef n 
+  = throwError $ "Duplicated function definition:" ++ pretty n
+
 -- Instances for elaboration 
 
 instance HasType (FunDef Id) where 

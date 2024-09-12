@@ -44,20 +44,15 @@ pipeline = do
             when (verbose || optDumpDS opts) do
               putStrLn "Desugared contract:"
               putStrLn (pretty res)
-          -- r5 <- defunctionalize env res
-          -- withErr r5 $ \ r6 -> do
-          --   when (verbose || optDumpDF opts) do
-          --     putStrLn "Defunctionalized contract:"
-          --     putStrLn (pretty r6)
             unless (optNoSpec opts) do
               r7 <- specialiseCompUnit res (optDebugSpec opts) env
               when (optDumpSpec opts) do
-                  putStrLn "Specialised contract:"
-                  putStrLn (pretty r7)
+                putStrLn "Specialised contract:"
+                putStrLn (pretty r7)
               r8 <- emitCore (optDebugCore opts) env r7
               when (optDumpCore opts) do
-                  putStrLn "Core contract(s):"
-                  forM_ r8 (putStrLn . pretty)
+                putStrLn "Core contract(s):"
+                forM_ r8 (putStrLn . pretty)
 
 
 withErr :: Either String a -> (a -> IO ()) -> IO ()

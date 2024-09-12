@@ -57,6 +57,7 @@ data Constr
 data TySym 
   = TySym {
       symName :: Name 
+    , symVars :: [Tyvar]
     , symType :: Ty 
     } deriving (Eq, Ord, Show, Data, Typeable)
 

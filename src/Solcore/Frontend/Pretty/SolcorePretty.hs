@@ -87,8 +87,12 @@ instance Pretty DataTy where
       bar = text " |"
 
 instance Pretty TySym where 
-  ppr (TySym n t) 
-    = text "type" <+> ppr n <+> text "=" <+> ppr t
+  ppr (TySym n vs t) 
+    = text "type" <+> 
+      ppr n <+> 
+      pprTyParams (map TyVar vs) <+> 
+      text "=" <+> 
+      ppr t
 
 instance Pretty Constr where
   ppr (Constr n []) = ppr n <> text " "
@@ -105,7 +109,8 @@ instance Pretty a => Pretty (Class a) where
       pprContext ps <+> 
       ppr v <+> 
       colon <+> 
-      ppr n <+> 
+      ppr n <+>
+      pprTyParams (TyVar <$> vs) <+>
       lbrace $$ 
       nest 3 (pprSignatures sigs) $$  
       rbrace 

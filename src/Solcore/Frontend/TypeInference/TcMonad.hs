@@ -28,14 +28,27 @@ runTcM m env = runExceptT (runStateT (runWriterT m) env)
 
 freshVar :: TcM Tyvar 
 freshVar 
+  = TVar <$> freshName 
+
+freshName :: TcM Name 
+freshName 
   = do 
-      ns <- gets nameSupply
-      let (n, ns') = newName ns
+      ns <- gets nameSupply 
+      let (n, ns') = newName ns 
       modify (\ ctx -> ctx {nameSupply = ns'})
-      return (TVar n)
+      return n 
+
+incCounter :: TcM Int 
+incCounter = do 
+  c <- gets counter 
+  modify (\ ctx -> ctx{counter = c + 1})
+  pure c 
 
 freshTyVar :: TcM Ty 
 freshTyVar = TyVar <$> freshVar
+
+writeDecl :: TopDecl Id -> TcM ()
+writeDecl d = tell [d]
 
 getEnvFreeVars :: TcM [Tyvar]
 getEnvFreeVars 
