@@ -188,7 +188,7 @@ tcField (Field n t _)
 tcInstance :: Instance Name -> TcM (Instance Id)
 tcInstance idecl@(Instance ctx n ts t funs) 
   = do
-      (funs', pss', ts') <- unzip3 <$> mapM tcFunDef funs
+      (funs', pss', ts') <- unzip3 <$> mapM (tcFunDef True) funs
       schs <- mapM (askEnv . sigName . funSignature) funs' 
       let 
           ts1 = map (\ (Forall _ (_ :=> t)) -> t) schs
@@ -252,7 +252,7 @@ tcBindGroup :: [FunDef Name] -> TcM [FunDef Id]
 tcBindGroup binds 
   = do
       funs <- mapM scanFun binds
-      (funs', pss, ts) <- unzip3 <$> mapM tcFunDef funs
+      (funs', pss, ts) <- unzip3 <$> mapM (tcFunDef False) funs
       ts' <- withCurrentSubst ts  
       schs <- mapM generalize (zip pss ts')
       let names = map (sigName . funSignature) funs 
@@ -286,12 +286,12 @@ isLambdaGenerated n
 
 -- type checking a single bind
 
-tcFunDef :: FunDef Name -> TcM (FunDef Id, [Pred], Ty)
-tcFunDef d@(FunDef sig bd) 
+tcFunDef :: Bool -> FunDef Name -> TcM (FunDef Id, [Pred], Ty)
+tcFunDef isInstance d@(FunDef sig bd) 
   = withLocalEnv do
       -- checking if the function isn't defined 
       te <- gets ctx 
-      when (Map.member (sigName sig) te) (duplicatedFunDef (sigName sig))
+      when (Map.member (sigName sig) te && not isInstance) (duplicatedFunDef (sigName sig))
       (params', ts) <- unzip <$> mapM addArg (sigParams sig)
       (bd', ps1, t') <- tcBody bd
       sch <- askEnv (sigName sig)
@@ -445,7 +445,7 @@ checkClass (Class ps n vs v sigs)
 addClassInfo :: Name -> Arity -> [Method] -> Pred -> TcM ()
 addClassInfo n ar ms p
   = do 
-      ct <- gets classTable 
+      ct <- gets classTable
       when (Map.member n ct) (duplicatedClassDecl n)
       modify (\ env -> 
         env{ classTable = Map.insert n (ar, ms, p) (classTable env)})
@@ -523,9 +523,6 @@ checkCoverage cn ts t
 checkMethod :: Pred -> FunDef Name -> TcM () 
 checkMethod ih@(InCls n t ts) (FunDef sig _) 
   = do
-      -- checking if the method is already defined 
-      te <- gets ctx 
-      when (Map.member (sigName sig) te) (duplicatedClassMethod (sigName sig))
       -- getting current method signature in class
       st@(Forall _ (qs :=> ty)) <- askEnv (sigName sig)
       p <- maybeToTcM (unwords [ "Constraint for"

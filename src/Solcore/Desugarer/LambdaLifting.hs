@@ -218,7 +218,8 @@ type LiftM a = StateT Env (ExceptT String Identity) a
 runLiftM :: LiftM a -> [Name] -> Either String (a, Env)
 runLiftM m ns = runIdentity (runExceptT (runStateT m initEnv))
     where 
-      initEnv = Env [TClassDef invokeClass] ns 0 []
+      initEnv = Env [TClassDef invokeClass] ns' 0 []
+      ns' = map Name ["primEqWord", "primAddWord", "invoke"] ++ ns
 
 freshName :: String -> LiftM Name 
 freshName s 
