@@ -127,14 +127,16 @@ checkDecl (CMutualDecl ds)
 checkDecl _ = return ()
 
 extSignature :: Signature Name -> TcM ()
-extSignature (Signature _ ctx n ps t)
+extSignature (Signature _ preds n ps t)
   = do
+      te <- gets ctx
+      when (Map.member n te) (duplicatedFunDef n)
       argTys <- mapM tyParam ps
       t' <- maybe freshTyVar pure t
       let 
         ty = funtype argTys t' 
-        vs = fv (ctx :=> ty)
-      sch <- generalize (ctx, ty) 
+        vs = fv (preds :=> ty)
+      sch <- generalize (preds, ty) 
       extEnv n sch
 
 -- including contructors on environment
@@ -290,8 +292,6 @@ tcFunDef :: Bool -> FunDef Name -> TcM (FunDef Id, [Pred], Ty)
 tcFunDef isInstance d@(FunDef sig bd) 
   = withLocalEnv do
       -- checking if the function isn't defined 
-      te <- gets ctx 
-      when (Map.member (sigName sig) te && not isInstance) (duplicatedFunDef (sigName sig))
       (params', ts) <- unzip <$> mapM addArg (sigParams sig)
       (bd', ps1, t') <- tcBody bd
       sch <- askEnv (sigName sig)
