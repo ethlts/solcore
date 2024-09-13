@@ -35,9 +35,9 @@ tcStmt e@(lhs := rhs)
 tcStmt e@(Let n mt me)
   = do
       (me', psf, tf) <- case (mt, me) of
-                      (Just t, Just e) -> do 
-                        (e', ps1,t1) <- tcExp e 
-                        s <- unify t t1 `wrapError` e
+                      (Just t, Just e1) -> do 
+                        (e', ps1,t1) <- tcExp e1 
+                        s <- match t t1 `wrapError` e
                         pure (Just e', apply s ps1, apply s t1)
                       (Just t, Nothing) -> do 
                         return (Nothing, [], t)

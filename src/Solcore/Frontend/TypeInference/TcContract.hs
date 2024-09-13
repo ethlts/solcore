@@ -129,12 +129,13 @@ checkDecl _ = return ()
 extSignature :: Signature Name -> TcM ()
 extSignature (Signature _ preds n ps t)
   = do
+      -- checking if the function is previously defined
       te <- gets ctx
       when (Map.member n te) (duplicatedFunDef n)
       argTys <- mapM tyParam ps
       t' <- maybe freshTyVar pure t
       let 
-        ty = funtype argTys t' 
+        ty = funtype argTys t'
         vs = fv (preds :=> ty)
       sch <- generalize (preds, ty) 
       extEnv n sch
@@ -190,7 +191,7 @@ tcField (Field n t _)
 tcInstance :: Instance Name -> TcM (Instance Id)
 tcInstance idecl@(Instance ctx n ts t funs) 
   = do
-      (funs', pss', ts') <- unzip3 <$> mapM (tcFunDef True) funs
+      (funs', pss', ts') <- unzip3 <$> mapM tcFunDef  funs
       schs <- mapM (askEnv . sigName . funSignature) funs' 
       let 
           ts1 = map (\ (Forall _ (_ :=> t)) -> t) schs
@@ -254,7 +255,7 @@ tcBindGroup :: [FunDef Name] -> TcM [FunDef Id]
 tcBindGroup binds 
   = do
       funs <- mapM scanFun binds
-      (funs', pss, ts) <- unzip3 <$> mapM (tcFunDef False) funs
+      (funs', pss, ts) <- unzip3 <$> mapM tcFunDef funs
       ts' <- withCurrentSubst ts  
       schs <- mapM generalize (zip pss ts')
       let names = map (sigName . funSignature) funs 
@@ -288,8 +289,8 @@ isLambdaGenerated n
 
 -- type checking a single bind
 
-tcFunDef :: Bool -> FunDef Name -> TcM (FunDef Id, [Pred], Ty)
-tcFunDef isInstance d@(FunDef sig bd) 
+tcFunDef :: FunDef Name -> TcM (FunDef Id, [Pred], Ty)
+tcFunDef d@(FunDef sig bd) 
   = withLocalEnv do
       -- checking if the function isn't defined 
       (params', ts) <- unzip <$> mapM addArg (sigParams sig)
@@ -297,7 +298,7 @@ tcFunDef isInstance d@(FunDef sig bd)
       sch <- askEnv (sigName sig)
       (ps :=> t) <- freshInst sch
       let t1 = foldr (:->) t' ts
-      s <- unify t t1 `wrapError` d
+      s <- match t t1 `wrapError` d
       rTy <- withCurrentSubst t'
       let sig' = Signature (sigVars sig) 
                            (sigContext sig) 

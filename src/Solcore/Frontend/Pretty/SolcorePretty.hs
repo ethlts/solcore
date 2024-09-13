@@ -10,6 +10,7 @@ import Solcore.Frontend.Syntax.Name
 import Solcore.Frontend.Pretty.Name
 import Solcore.Frontend.Syntax.Stmt 
 import Solcore.Frontend.Syntax.Ty
+import Solcore.Frontend.TypeInference.Id
 import Solcore.Frontend.TypeInference.TcSubst 
 
 import Common.Pretty
@@ -292,4 +293,7 @@ instance Pretty Subst where
       go (v,t) = ppr v <+> text "+->" <+> ppr t
 
 
+instance Pretty Id  where 
+  ppr (Id n t) = ppr n <+> if debug then text "::" <+> ppr t else empty 
 
+debug = False 

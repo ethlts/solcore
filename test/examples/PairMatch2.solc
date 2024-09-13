@@ -1,0 +1,9 @@
+data Pair(a, b) = Pair(a, b)
+
+function snd(p: Pair(a, Word)) -> a {
+    match p {
+    | Pair(_, w) => return w;
+    };
+}
+
+
