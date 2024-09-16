@@ -34,11 +34,14 @@ pipeline = do
       withErr r2 $ \ ast' -> do
         r3 <- typeInfer ast'
         withErr r3 $ \ (c', env) -> do
-          when verbose $ do 
+          let warns = warnings env 
+          when (not $ null warns) do 
+           mapM_ putStrLn (reverse $ warns) 
+          when verbose $ do
+            putStrLn "Logging information:"
+            mapM_ putStrLn (reverse $ logs env)
             putStrLn "Annotated AST:"
             putStrLn $ pretty c' 
-            putStrLn "Inferred types:"
-            mapM_ putStrLn (reverse $ logs env)
           r4 <- matchCompiler c'
           withErr r4 $ \ res -> do
             when (verbose || optDumpDS opts) do

@@ -252,9 +252,9 @@ info ss = do
             logging <- isLogging
             when logging $ modify (\ r -> r{ logs = concat ss : logs r })
 
-warn :: [String] -> TcM ()
-warn ss 
-  = modify (\ r -> r{ logs = concat ss : logs r })
+warning :: String -> TcM ()
+warning s = do 
+  modify (\ r -> r{ warnings = s : "Warning:" : warnings r })
 
 -- wrapping error messages 
 

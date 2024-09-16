@@ -56,6 +56,7 @@ data TcEnv
     , nameSupply :: NameSupply -- Fresh name supply
     , counter :: Int           -- used to generate new names 
     , logs :: [String]         -- Logging
+    , warnings :: [String]     -- warnings collected to user 
     , enableLog :: Bool        -- Enable logging?
     , enableCoverage :: Bool   -- Enable coverage checking?
     , maxRecursionDepth :: Int -- max recursion depth in 
@@ -71,6 +72,7 @@ initTcEnv = TcEnv primCtx
                   mempty
                   namePool
                   0
+                  []
                   []
                   True 
                   True 

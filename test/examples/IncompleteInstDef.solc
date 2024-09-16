@@ -1,0 +1,14 @@
+class a : Foo(b) {
+  function foo (x : a, y : b) -> b ; 
+  function faa (y : a) -> a ;
+}
+
+data Bool = False | True 
+
+data Maybe(a) = Nothing | Just(a)
+
+instance Bool : Foo(Bool) {
+  function faa(y) {
+    return y ; 
+  }
+} 

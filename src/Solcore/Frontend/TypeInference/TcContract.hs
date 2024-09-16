@@ -189,9 +189,21 @@ tcField (Field n t _)
 tcInstance :: Instance Name -> TcM (Instance Id)
 tcInstance idecl@(Instance ctx n ts t funs) 
   = do
+      checkCompleteInstDef n (map (sigName . funSignature) funs) 
       funs' <- buildSignatures n ts t funs  
       (funs1, pss', ts') <- unzip3 <$> mapM tcFunDef  funs' `wrapError` idecl
       withCurrentSubst (Instance ctx n ts t funs1)
+
+checkCompleteInstDef :: Name -> [Name] -> TcM ()
+checkCompleteInstDef n ns 
+  = do 
+      mths <- methods <$> askClassInfo n 
+      let remaining = mths \\ ns 
+      when (not $ null remaining) do 
+        warning $ unlines $ ["Incomplete definition for class:"
+                            , pretty n
+                            , "missing definitions for:"
+                            ] ++ map pretty remaining
 
 buildSignatures :: Name -> [Ty] -> Ty -> [FunDef Name] -> TcM [FunDef Name]
 buildSignatures n ts t funs 
