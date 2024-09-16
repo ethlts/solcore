@@ -224,13 +224,17 @@ instance FreeVars (FunDef Name) where
 
 instance FreeVars (ContractDecl Name) where 
   fv (CFunDecl fd) = fv fd 
-  fv (CMutualDecl ds) = fv ds 
+  fv (CMutualDecl ds) = fv ds
   fv _ = []
 
 instance FreeVars (TopDecl Name) where 
   fv (TFunDef fd) = fv fd 
   fv (TMutualDef ds) = fv ds
+  fv (TInstDef idecl) = fv idecl 
   fv _ = []
+
+instance FreeVars (Instance Name) where 
+  fv (Instance _ _ _ _ fds) = fv fds 
 
 instance FreeVars (Equation Name) where 
   fv = fv . snd 

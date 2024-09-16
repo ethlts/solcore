@@ -1,0 +1,11 @@
+class ref:Loadable (deref) {
+    function load (r : ref) -> deref;
+}
+
+class ref:Storable (deref) {
+    function store (r : ref, d : deref) -> Unit;
+}
+
+// haskell style class constraints
+class ( ref : Loadable(deref)
+      , ref : Storable(ref)) => ref:Ref (deref) {}

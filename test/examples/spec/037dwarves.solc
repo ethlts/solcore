@@ -1,0 +1,15 @@
+contract Dwarves {
+  data Dwarf = Doc | Grumpy | Sleepy | Bashful | Happy | Sneezy | Dopey
+
+  function fromEnum(c) {
+    match c {
+      | Doc      => return 1;
+      | Grumpy   => return 2;
+      | Sleepy   => return 3;
+      | Bashful  => return 4;
+      | Happy    => return 5;
+    };
+  }
+
+  function main() { return fromEnum(Happy); }
+}

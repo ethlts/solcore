@@ -4,6 +4,7 @@ import Language.Core(Contract(..))
 import Language.Core.Parser
 import Common.Pretty(Pretty(..), nest, render)
 import Builtins(yulBuiltins)
+import Compress
 import TM
 import Translate
 import Language.Yul(wrapInSolFunction, wrapInContract)
@@ -25,7 +26,12 @@ main = do
         putStrLn "/* Core:"
         putStrLn (render (nest 2 (ppr coreContract)))
         putStrLn "*/"
-    generatedYul <- runTM options (translateStmts core)
+    let oCompress = Options.compress options
+    let source = if oCompress then compress core else core
+    when oCompress $ do
+        putStrLn "Compressing sums"
+        putStrLn (render (nest 2 (ppr source)))
+    generatedYul <- runTM options (translateStmts source)
     let fooFun = wrapInSolFunction "wrapper" (yulBuiltins <> generatedYul)
     let doc = wrapInContract (fromString (ccName coreContract)) "wrapper()" fooFun
     -- putStrLn (render doc)

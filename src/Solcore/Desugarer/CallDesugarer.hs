@@ -249,7 +249,7 @@ instance IndirectCalls (Exp Name) where
 
 mkInvokeCall :: Exp Name -> Exp Name -> [Exp Name] -> CallM (Exp Name)
 mkInvokeCall x e args 
-  = do 
+  = do
       e' <- desugarIndirectCalls e 
       args' <- desugarIndirectCalls args 
       let

@@ -2,7 +2,8 @@ module Solcore.Frontend.TypeInference.TcMonad where
 
 import Control.Monad
 import Control.Monad.Except
-import Control.Monad.State 
+import Control.Monad.State
+import Control.Monad.Writer
 
 import Data.List 
 import Data.Map (Map)
@@ -10,6 +11,7 @@ import qualified Data.Map as Map
 
 import Solcore.Frontend.Pretty.SolcorePretty hiding((<>))
 import Solcore.Frontend.Syntax
+import Solcore.Frontend.TypeInference.Id
 import Solcore.Frontend.TypeInference.NameSupply
 import Solcore.Frontend.TypeInference.TcEnv
 import Solcore.Frontend.TypeInference.TcSubst
@@ -19,21 +21,34 @@ import Solcore.Primitives.Primitives
 
 -- definition of type inference monad infrastructure 
 
-type TcM a = StateT TcEnv (ExceptT String IO) a 
+type TcM a = WriterT [TopDecl Id] (StateT TcEnv (ExceptT String IO)) a 
 
-runTcM :: TcM a -> TcEnv -> IO (Either String (a, TcEnv))
-runTcM m env = runExceptT (runStateT m env)
+runTcM :: TcM a -> TcEnv -> IO (Either String ((a, [TopDecl Id]), TcEnv))
+runTcM m env = runExceptT (runStateT (runWriterT m) env)
 
 freshVar :: TcM Tyvar 
 freshVar 
+  = TVar <$> freshName 
+
+freshName :: TcM Name 
+freshName 
   = do 
-      ns <- gets nameSupply
-      let (n, ns') = newName ns
+      ns <- gets nameSupply 
+      let (n, ns') = newName ns 
       modify (\ ctx -> ctx {nameSupply = ns'})
-      return (TVar n)
+      return n 
+
+incCounter :: TcM Int 
+incCounter = do 
+  c <- gets counter 
+  modify (\ ctx -> ctx{counter = c + 1})
+  pure c 
 
 freshTyVar :: TcM Ty 
 freshTyVar = TyVar <$> freshVar
+
+writeDecl :: TopDecl Id -> TcM ()
+writeDecl d = tell [d]
 
 getEnvFreeVars :: TcM [Tyvar]
 getEnvFreeVars 
@@ -42,7 +57,6 @@ getEnvFreeVars
 unify :: Ty -> Ty -> TcM Subst
 unify t t' 
   = do
-      -- info ["Unifying:", pretty t, " with ", pretty t']
       s <- getSubst 
       s' <- mgu (apply s t) (apply s t')
       extSubst s'
@@ -153,6 +167,14 @@ withLocalEnv ta
 envList :: TcM [(Name, Scheme)]
 envList = gets (Map.toList . ctx)
 
+-- asking class info
+
+askClassInfo :: Name -> TcM ClassInfo 
+askClassInfo n 
+  = do 
+      r <- Map.lookup n <$> gets classTable
+      maybe (undefinedClass n) pure r 
+
 -- environment operations: variables 
 
 maybeAskEnv :: Name -> TcM (Maybe Scheme)
@@ -230,9 +252,9 @@ info ss = do
             logging <- isLogging
             when logging $ modify (\ r -> r{ logs = concat ss : logs r })
 
-warn :: [String] -> TcM ()
-warn ss 
-  = modify (\ r -> r{ logs = concat ss : logs r })
+warning :: String -> TcM ()
+warning s = do 
+  modify (\ r -> r{ warnings = s : "Warning:" : warnings r })
 
 -- wrapping error messages 
 
@@ -277,3 +299,7 @@ undefinedFunction t n
                          , "does not define function:"
                          , pretty n
                          ]
+
+undefinedClass :: Name -> TcM a 
+undefinedClass n 
+  = throwError $ unlines ["Undefined class:", pretty n]

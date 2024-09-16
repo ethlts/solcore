@@ -8,6 +8,7 @@ data Options = Options
     , output :: FilePath
     , verbose :: Bool
     , debug :: Bool
+    , compress :: Bool
     } deriving Show
 
 optionsParser :: Parser Options
@@ -20,24 +21,31 @@ optionsParser = Options
         <> short 'c'
         <> metavar "NAME"
         <> help "Contract name"
-        <> value "Output")
+        <> value "Output"
+        <> showDefault
+        )
     <*> strOption
         ( long "output"
         <> short 'o'
         <> metavar "FILE"
         <> help "Output file"
-        <> value "Output.sol")
+        <> value "Output.sol"
+        <> showDefault
+        )
     <*> switch
         ( long "verbose"
         <> short 'v'
         <> help "Verbosity level"
-        <> showDefault
         )
     <*> switch
         ( long "debug"
         <> short 'd'
         <> help "Diagnostic output"
-        <> showDefault
+        )
+    <*> switch
+        ( long "compress"
+        <> short 'O'
+        <> help "Compress sums (experimental)"
         )
 
 parseOptions :: IO Options

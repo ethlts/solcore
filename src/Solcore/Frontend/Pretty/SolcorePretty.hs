@@ -10,6 +10,7 @@ import Solcore.Frontend.Syntax.Name
 import Solcore.Frontend.Pretty.Name
 import Solcore.Frontend.Syntax.Stmt 
 import Solcore.Frontend.Syntax.Ty
+import Solcore.Frontend.TypeInference.Id
 import Solcore.Frontend.TypeInference.TcSubst 
 
 import Common.Pretty
@@ -87,8 +88,12 @@ instance Pretty DataTy where
       bar = text " |"
 
 instance Pretty TySym where 
-  ppr (TySym n t) 
-    = text "type" <+> ppr n <+> text "=" <+> ppr t
+  ppr (TySym n vs t) 
+    = text "type" <+> 
+      ppr n <+> 
+      pprTyParams (map TyVar vs) <+> 
+      text "=" <+> 
+      ppr t
 
 instance Pretty Constr where
   ppr (Constr n []) = ppr n <> text " "
@@ -105,7 +110,8 @@ instance Pretty a => Pretty (Class a) where
       pprContext ps <+> 
       ppr v <+> 
       colon <+> 
-      ppr n <+> 
+      ppr n <+>
+      pprTyParams (TyVar <$> vs) <+>
       lbrace $$ 
       nest 3 (pprSignatures sigs) $$  
       rbrace 
@@ -287,4 +293,7 @@ instance Pretty Subst where
       go (v,t) = ppr v <+> text "+->" <+> ppr t
 
 
+instance Pretty Id  where 
+  ppr (Id n t) = ppr n <+> if debug then text "::" <+> ppr t else empty 
 
+debug = False 

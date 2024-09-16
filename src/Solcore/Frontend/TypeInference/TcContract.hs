@@ -24,7 +24,12 @@ import Solcore.Primitives.Primitives
 
 typeInfer :: CompUnit Name -> IO (Either String (CompUnit Id, TcEnv))
 typeInfer c 
-  = runTcM (tcCompUnit c) initTcEnv  
+  = do 
+      r <- runTcM (tcCompUnit c) initTcEnv  
+      case r of 
+        Left err -> pure $ Left err 
+        Right (((CompUnit imps ds), ts), env) -> 
+          pure (Right ((CompUnit imps (ds ++ ts)), env)) 
 
 -- type inference for a compilation unit 
 
@@ -32,10 +37,14 @@ tcCompUnit :: CompUnit Name -> TcM (CompUnit Id)
 tcCompUnit (CompUnit imps cs)
   = do 
       loadImports imps
-      mapM_ checkTopDecl cs
+      mapM_ checkTopDecl cls 
+      mapM_ checkTopDecl cs'
       cs' <- mapM tcTopDecl' cs 
       pure (CompUnit imps cs')
-    where 
+    where
+      (cls, cs') = partition isClass cs 
+      isClass (TClassDef _) = True 
+      isClass _ = False 
       tcTopDecl' d = do 
         clearSubst
         d' <- tcTopDecl d 
@@ -118,14 +127,17 @@ checkDecl (CMutualDecl ds)
 checkDecl _ = return ()
 
 extSignature :: Signature Name -> TcM ()
-extSignature (Signature _ ctx n ps t)
+extSignature (Signature _ preds n ps t)
   = do
+      -- checking if the function is previously defined
+      te <- gets ctx
+      when (Map.member n te) (duplicatedFunDef n)
       argTys <- mapM tyParam ps
       t' <- maybe freshTyVar pure t
       let 
-        ty = funtype argTys t' 
-        vs = fv (ctx :=> ty)
-      sch <- generalize (ctx, ty) 
+        ty = funtype argTys t'
+        vs = fv (preds :=> ty)
+      sch <- generalize (preds, ty) 
       extEnv n sch
 
 -- including contructors on environment
@@ -174,47 +186,56 @@ tcField (Field n t _)
       extEnv n (monotype t)
       pure (Field n t Nothing)
 
--- type checking instance body 
-
 tcInstance :: Instance Name -> TcM (Instance Id)
-tcInstance (Instance ctx n ts t funs) 
+tcInstance idecl@(Instance ctx n ts t funs) 
   = do
-      (funs', pss', ts') <- unzip3 <$> mapM tcFunDef funs
-      schs <- mapM (askEnv . sigName . funSignature) funs' 
-      let 
-          ts1 = map (\ (Forall _ (_ :=> t)) -> t) schs
-          s' = renameSubst1 ts'
-      s <- unifyTypes ts' ts1
-      let ist = apply s' (Instance ctx n ts t funs')
-      pure ist
+      checkCompleteInstDef n (map (sigName . funSignature) funs) 
+      funs' <- buildSignatures n ts t funs  
+      (funs1, pss', ts') <- unzip3 <$> mapM tcFunDef  funs' `wrapError` idecl
+      withCurrentSubst (Instance ctx n ts t funs1)
 
-renameSubst :: [Ty] -> Subst 
-renameSubst ts 
-  = Subst (zip vs' vs) 
+checkCompleteInstDef :: Name -> [Name] -> TcM ()
+checkCompleteInstDef n ns 
+  = do 
+      mths <- methods <$> askClassInfo n 
+      let remaining = mths \\ ns 
+      when (not $ null remaining) do 
+        warning $ unlines $ ["Incomplete definition for class:"
+                            , pretty n
+                            , "missing definitions for:"
+                            ] ++ map pretty remaining
+
+buildSignatures :: Name -> [Ty] -> Ty -> [FunDef Name] -> TcM [FunDef Name]
+buildSignatures n ts t funs 
+  = do 
+      cpred <- classpred <$> askClassInfo n 
+      sm <- matchPred cpred (InCls n t ts) 
+      schs <- mapM (askEnv . sigName . funSignature) funs 
+      let  
+          app (Forall vs (_ :=> t1)) = apply sm t1
+          tinsts = map app schs
+      zipWithM buildSignature tinsts funs 
+
+buildSignature :: Ty -> FunDef Name -> TcM (FunDef Name)
+buildSignature t (FunDef sig bd)
+  = do 
+      let (args, ret) = splitTy t 
+          sig' = typeSignature args ret sig
+      pure (FunDef sig' bd)
+
+typeSignature :: [Ty] -> Ty -> Signature Name -> Signature Name 
+typeSignature args ret sig 
+  = sig { sigParams = zipWith paramType args (sigParams sig)
+        , sigReturn = Just ret
+        }
     where 
-      vs = map TyVar (fv ts)
-      vs' = map TVar namePool
-
-renameSubst1 :: [Ty] -> Subst 
-renameSubst1 ts 
-  = Subst (zip vs vs') 
-    where 
-      vs = fv ts
-      vs' = map (TyVar . TVar) namePool
-
-
-
-instanceTypes :: Instance Id -> [Ty]
-instanceTypes (Instance ctx _ ts t funs) 
-  = foldr union [] [concatMap ctxTypes ctx, t : ts]  
-    where 
-      ctxTypes (InCls _ x xs) = x : xs  
-
+      paramType t (Typed n _) = Typed n t
+      paramType t (Untyped n) = Typed n t 
 
 tcClass :: Class Name -> TcM (Class Id)
-tcClass (Class ctx n vs v sigs) 
+tcClass iclass@(Class ctx n vs v sigs) 
   = do
-      let ns = map sigName sigs 
+      let ns = map sigName sigs
       schs <- mapM askEnv ns 
       sigs' <- mapM tcSig (zip sigs schs)
       pure (Class ctx n vs v sigs')
@@ -243,27 +264,50 @@ tcBindGroup :: [FunDef Name] -> TcM [FunDef Id]
 tcBindGroup binds 
   = do
       funs <- mapM scanFun binds
-      (funs', pss, ts) <- unzip3 <$> mapM tcFunDef funs
+      (funs', pss, ts) <- unzip3 <$> mapM tcFunDef funs 
       ts' <- withCurrentSubst ts  
       schs <- mapM generalize (zip pss ts')
       let names = map (sigName . funSignature) funs 
       let p (x,y) = pretty x ++ " :: " ++ pretty y
       mapM_ (uncurry extEnv) (zip names schs)
+      mapM_ generateDecls (zip funs' schs)
       info ["Results: ", unlines $ map p $ zip names schs]
       pure funs'
 
+generateDecls :: (FunDef Id, Scheme) -> TcM () 
+generateDecls ((FunDef sig bd), sch) 
+  = do
+      dt <- createUniqueType (sigName sig) sch 
+      pure ()
+
+createUniqueType :: Name -> Scheme -> TcM (Maybe (TopDecl Id)) 
+createUniqueType (Name n) (Forall vs _)
+  | isLambdaGenerated n = pure Nothing 
+  | otherwise 
+    = do
+        m <- incCounter 
+        let nt = Name $ "Type" ++ n ++ show m
+            dc = Constr nt []
+            dt = TDataDef (DataTy nt vs [dc])
+        writeDecl dt
+        pure (Just dt)
+
+isLambdaGenerated :: String -> Bool 
+isLambdaGenerated n 
+  = "lambdaimpl" `isPrefixOf` n
 
 -- type checking a single bind
 
 tcFunDef :: FunDef Name -> TcM (FunDef Id, [Pred], Ty)
 tcFunDef d@(FunDef sig bd) 
   = withLocalEnv do
-      (params', ts) <- unzip <$> mapM addArg (sigParams sig)
-      (bd', ps1, t') <- tcBody bd
+      -- checking if the function isn't defined 
+      (params', schs, ts) <- tcArgs (sigParams sig)
+      (bd', ps1, t') <- withLocalCtx schs (tcBody bd)
       sch <- askEnv (sigName sig)
       (ps :=> t) <- freshInst sch
       let t1 = foldr (:->) t' ts
-      s <- unify t t1 `wrapError` d
+      s <- match t t1 `wrapError` d
       rTy <- withCurrentSubst t'
       let sig' = Signature (sigVars sig) 
                            (sigContext sig) 
@@ -404,23 +448,27 @@ checkClass (Class ps n vs v sigs)
             pst <- mapM tyParam ps
             t' <- maybe freshTyVar pure mt
             let ft = funtype pst t' 
-            unless (null ctx && v `elem` fv ft)
+            unless (v `elem` fv ft)
                    (signatureError n v sig ft)
             addClassMethod p sig 
 
 addClassInfo :: Name -> Arity -> [Method] -> Pred -> TcM ()
 addClassInfo n ar ms p
-  = modify (\ env -> 
-      env{ classTable = Map.insert n (ar, ms, p) (classTable env)})
+  = do 
+      ct <- gets classTable
+      when (Map.member n ct) (duplicatedClassDecl n)
+      modify (\ env -> 
+        env{ classTable = Map.insert n (ClassInfo ar ms p) (classTable env)})
 
 addClassMethod :: Pred -> Signature Name -> TcM ()
-addClassMethod p@(InCls _ _ _) (Signature _ _ f ps t) 
+addClassMethod p@(InCls _ _ _) sig@(Signature _ ctx f ps t) 
   = do
       tps <- mapM tyParam ps
       t' <- maybe freshTyVar pure t
       let ty = funtype tps t'
           vs = fv ty
-      extEnv f (Forall vs ([p] :=> ty))
+          ctx' = [p] `union` ctx
+      extEnv f (Forall vs (ctx' :=> ty))
 addClassMethod p@(_ :~: _) (Signature _ _ n _ _) 
   = throwError $ unlines [
                     "Invalid constraint:"
@@ -485,7 +533,7 @@ checkCoverage cn ts t
 checkMethod :: Pred -> FunDef Name -> TcM () 
 checkMethod ih@(InCls n t ts) (FunDef sig _) 
   = do
-      -- getting current method signature in class 
+      -- getting current method signature in class
       st@(Forall _ (qs :=> ty)) <- askEnv (sigName sig)
       p <- maybeToTcM (unwords [ "Constraint for"
                                , unName n
@@ -527,7 +575,7 @@ checkMeasure ps c
 -- error for class definitions 
 
 signatureError :: Name -> Tyvar -> Signature Name -> Ty -> TcM ()
-signatureError n v (Signature _ ctx f _ _) t
+signatureError n v sig@(Signature _ ctx f _ _) t
   | null ctx = throwError $ unlines ["Impossible! Class context is empty in function:" 
                                     , pretty f
                                     , "which is a membre of the class declaration:"
@@ -542,6 +590,18 @@ signatureError n v (Signature _ ctx f _ _) t
                                             , "that is a member of class definition"
                                             , pretty n 
                                             ]
+
+duplicatedClassDecl :: Name -> TcM ()
+duplicatedClassDecl n 
+  = throwError $ "Duplicated class definition:" ++ pretty n
+
+duplicatedClassMethod :: Name -> TcM ()
+duplicatedClassMethod n 
+  = throwError $ "Duplicated class method definition:" ++ pretty n 
+
+duplicatedFunDef :: Name -> TcM () 
+duplicatedFunDef n 
+  = throwError $ "Duplicated function definition:" ++ pretty n
 
 -- Instances for elaboration 
 

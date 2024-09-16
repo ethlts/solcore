@@ -28,7 +28,13 @@ type ConInfo = (Name, Scheme)
 
 -- number of weak parameters and method names
 type Method = Name 
-type ClassInfo = (Arity, [Method], Pred)
+data ClassInfo 
+  = ClassInfo {
+      classArity :: Arity
+    , methods :: [Method]
+    , classpred :: Pred
+    }
+
 type Table a = Map Name a 
 
 -- typing environment 
@@ -48,7 +54,9 @@ data TcEnv
                                -- used to type check calls.
     , subst :: Subst           -- Current substitution
     , nameSupply :: NameSupply -- Fresh name supply
+    , counter :: Int           -- used to generate new names 
     , logs :: [String]         -- Logging
+    , warnings :: [String]     -- warnings collected to user 
     , enableLog :: Bool        -- Enable logging?
     , enableCoverage :: Bool   -- Enable coverage checking?
     , maxRecursionDepth :: Int -- max recursion depth in 
@@ -61,8 +69,10 @@ initTcEnv = TcEnv primCtx
                   primTypeEnv
                   primClassEnv 
                   Nothing 
-                  mempty 
-                  namePool 
+                  mempty
+                  namePool
+                  0
+                  []
                   []
                   True 
                   True 

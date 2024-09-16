@@ -83,11 +83,21 @@ unifyAllTypes (t : ts)
 
 merge :: MonadError String m => Subst -> Subst -> m Subst
 merge s1@(Subst p1) s2@(Subst p2) = if agree then pure (Subst (p1 ++ p2))
-                                             else throwError "merge fails"
+                                             else mergeError disagree 
   where
+    disagree = foldr step [] (dom p1 `intersect` dom p2)
+    step v ac 
+      | apply s1 (TyVar v) == apply s2 (TyVar v) = ac 
+      | otherwise = (apply s1 (TyVar v), apply s2 (TyVar v)) : ac 
     agree = all (\v -> apply s1 (TyVar v) == apply s2 (TyVar v))
                 (dom p1 `intersect` dom p2)
     dom s = map fst s
+
+mergeError :: MonadError String m => [(Ty, Ty)] -> m a 
+mergeError ts = throwError $ unlines $ "Cannot match types:" : ss 
+  where 
+    ss = map go ts 
+    go (x,y) = pretty x ++ " with " ++ pretty y
 
 -- basic error messages 
 

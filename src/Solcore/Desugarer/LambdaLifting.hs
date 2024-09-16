@@ -7,16 +7,17 @@ import Data.List
 import Solcore.Frontend.Pretty.SolcorePretty 
 import Solcore.Frontend.Syntax
 import Solcore.Frontend.TypeInference.NameSupply
+import Solcore.Primitives.Primitives
 
 
 -- lambda lifting transformation top level function 
 
-lambdaLifting :: CompUnit Name -> Either String (CompUnit Name)
+lambdaLifting :: CompUnit Name -> Either String (CompUnit Name, [String])
 lambdaLifting unit 
-  = case runLiftM (liftLambda unit) of 
+  = case runLiftM (liftLambda unit) (collect unit) of 
       Left err -> Left err 
       Right (CompUnit imps ds, env) ->
-       Right (CompUnit imps (generated env ++ ds))  
+       Right (CompUnit imps (generated env ++ ds), debugInfo env)  
 
 -- lifting lambdas
 
@@ -99,47 +100,82 @@ instance LiftLambda (Exp Name) where
   liftLambda (FieldAccess e n) 
     = flip FieldAccess n <$> liftLambda e 
   liftLambda (Call me n es)
-    = Call <$> liftLambda me <*> pure n <*> liftLambda es 
+    = desugarCall me n es 
   liftLambda e@(Lam ps bd mt) 
     = do  
         let free = vars bd \\ vars ps 
         debugInfoLambda e free 
-        (e,d) <- createLambdaType free
-        createFunction free d ps bd mt 
+        (e,d, arg, res) <- createLambdaType free
+        createFunction arg res free d ps bd mt
         pure e
   liftLambda d = pure d 
 
-createLambdaType :: [Name] -> LiftM (Exp Name, DataTy)
+desugarCall :: Maybe (Exp Name) -> 
+               Name -> 
+               [Exp Name] -> 
+               LiftM (Exp Name)
+desugarCall me n es 
+  = do 
+      b <- isDirectCall n 
+      me' <- liftLambda me 
+      es' <- liftLambda es 
+      let m = Name "invoke"
+      if b then
+        pure (Call me' n es')
+      else 
+        pure (Call Nothing m (Var n : es'))
+
+
+createLambdaType :: [Name] -> LiftM (Exp Name, DataTy, Name, Name)
 createLambdaType ns 
   = do 
-      n <- freshName "LambdaTy"
-      let vs = map TVar ns 
-          d = DataTy n vs [Constr n (TyVar <$> vs)]
+      n <- freshName "LambdaTy" 
+      arg <- freshName "arg"
+      res <- freshName "res"
+      let 
+          vs = map TVar ns
+          vs' = map TVar (ns ++ [arg, res]) 
+          d = DataTy n vs' [Constr n (TyVar <$> vs)]
       debugCreateLambdaType d
       addDecl (TDataDef d)
-      pure (Con n (Var <$> ns), d)
+      pure (Con n (Var <$> ns), d, arg, res)
 
-createFunction :: [Name] -> 
+createFunction :: Name -> 
+                  Name -> 
+                  [Name] -> 
                   DataTy -> 
-                  [Param Name] -> 
+                  [Param Name] ->  
                   Body Name -> 
                   Maybe Ty -> LiftM ()
-createFunction ns (DataTy n vs [(Constr m ts)]) ps bd mt 
+createFunction arg res ns dt@(DataTy n vs [(Constr m ts)]) ps bd mt 
   = do 
-      f <- freshName "lambda_impl"
+      f <- freshName "lambdaimpl"
       let (np, pool') = newName (namePool \\ vars ps)
-          t = TyCon n (TyVar <$> vs) 
-          ps' = Typed np t : ps 
-          bd' = [Match [Var np] [([PCon m pats], bd)]]
-          pats = map PVar ns 
-          sig = Signature [] [] f ps' mt -- XXX need to check here
-          fd = FunDef sig bd' 
+          ps1 = Untyped <$> ns
+          ps' = ps1 ++ ps
+          pl = Typed np (TyCon n (TyVar <$> vs))
+          s' = Return (Call Nothing f (Var <$> (ns ++ [arg])))
+          bd' = [Match [Var np] [([PCon m pats], [s'])]]
+          pats = map PVar ns
+          parg = Untyped arg 
+          -- XXX need to check here: lambda syntax do not allow contexts
+          sig = Signature [] [] f ps' mt 
+          sig' = Signature [] [] (Name "invoke") [pl, parg] Nothing
+          fd = FunDef sig bd
+          fd' = FunDef sig' bd'
+          targ = TyVar $ TVar arg 
+          tres = TyVar $ TVar res 
+          mtc = TyCon n (TyVar <$> vs)
+          idecl = Instance [] (Name "Invokable") [targ, tres] mtc [fd']
       debugCreateFunction fd 
       addDecl (TFunDef fd)
-createFunction _ dt _ _ _ 
+      addDecl (TInstDef idecl)
+createFunction _ _ _ dt _ _ _ 
   = throwError $ unlines [ "Impossible! Closure type does not have one constructor:"
                          , pretty dt 
                          ]
+
+
 
 debugCreateFunction :: FunDef Name -> LiftM ()
 debugCreateFunction fd 
@@ -172,16 +208,18 @@ debugInfoLambda e ns
 data Env 
   = Env {
       generated :: [TopDecl Name]
+    , functionNames :: [Name]
     , fresh :: Int 
     , debugInfo :: [String]
     }
 
 type LiftM a = StateT Env (ExceptT String Identity) a
 
-runLiftM :: LiftM a -> Either String (a, Env)
-runLiftM m = runIdentity (runExceptT (runStateT m initEnv))
+runLiftM :: LiftM a -> [Name] -> Either String (a, Env)
+runLiftM m ns = runIdentity (runExceptT (runStateT m initEnv))
     where 
-      initEnv = Env [] 0 []
+      initEnv = Env [TClassDef invokeClass] ns' 0 []
+      ns' = map Name ["primEqWord", "primAddWord", "invoke"] ++ ns
 
 freshName :: String -> LiftM Name 
 freshName s 
@@ -190,6 +228,12 @@ freshName s
       modify (\ env -> env {fresh = n + 1})
       pure $ Name (s ++ show n)
 
+isDirectCall :: Name -> LiftM Bool 
+isDirectCall n 
+  = do 
+      ns <- gets functionNames 
+      pure (n `elem` ns)
+
 addDecl :: TopDecl Name -> LiftM () 
 addDecl d 
   = modify (\ env -> env{ generated = d : generated env })
@@ -197,6 +241,46 @@ addDecl d
 addDebugInfo :: String -> LiftM ()
 addDebugInfo s 
   = modify (\env -> env{ debugInfo = s : debugInfo env })
+
+-- collecting function names, for determining indirect calls 
+
+class Collect a where 
+  collect :: a -> [Name] 
+
+instance Collect a => Collect [a] where 
+  collect = foldr (union . collect) []
+
+instance Collect (CompUnit Name) where 
+  collect (CompUnit _ ds) = collect ds 
+
+instance Collect (TopDecl Name) where 
+  collect (TContr c) = collect c 
+  collect (TFunDef fd) = collect fd 
+  collect (TClassDef c) = collect c 
+  collect (TInstDef ins) = collect ins 
+  collect (TMutualDef ds) = collect ds 
+  collect _ = []
+
+instance Collect (Contract Name) where 
+  collect (Contract n vs ds) 
+    = collect ds 
+
+instance Collect (ContractDecl Name) where 
+  collect (CFunDecl fd) = collect fd 
+  collect (CMutualDecl ds) = collect ds 
+  collect _ = []
+
+instance Collect (Class Name) where 
+  collect = collect . signatures 
+
+instance Collect (Instance Name) where 
+  collect = collect . instFunctions
+
+instance Collect (Signature Name) where 
+  collect sig = [sigName sig]
+
+instance Collect (FunDef Name) where 
+  collect fd = collect (funSignature fd)
 
 -- determining free variables 
 

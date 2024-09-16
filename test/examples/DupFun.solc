@@ -1,0 +1,11 @@
+function f(x : Word) -> Word {
+  return x;
+}
+
+function f(x : Word) -> Word {
+  return 10;
+}
+
+function g(x : Word) -> Word {
+  return f(x);
+}

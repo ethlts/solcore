@@ -1,11 +1,15 @@
+function id(x) {
+   return x;
+}
+
 contract SimpleLambda{
   function f (z : Word) {
     let n = lam (x) {
       return x;
     } ;
-    let m = lam (y) {
-        return z ;
-      };
-    return n(0); 
+    let m = lam (x) {
+      return z ;
+    } ;
+    return n(0);
   }
 }
