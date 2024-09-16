@@ -28,8 +28,8 @@ type sf3 = Unit
 
 // Field instances linking each field to it's position in the underlying tuple
 instance Pair(s, sf1):Field(Unit, uint) {}
-instance Pair(s, sf2):Field(Pair(uint, Unit), string) {}
-instance Pair(s, sf3):Field(Pair(uint, Pair(string, Unit)), bool) {}
+instance Pair(s, sf2):Field(uint, string) {}
+instance Pair(s, sf3):Field(Pair(uint, string), bool) {}
 
 
 // struct field member access desugars into calls to this class
