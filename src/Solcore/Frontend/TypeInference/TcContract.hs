@@ -243,7 +243,7 @@ tcClass iclass@(Class ctx n vs v sigs)
 tcSig :: (Signature Name, Scheme) -> TcM (Signature Id)
 tcSig (sig, (Forall _ (_ :=> t))) 
   = do
-      let (ts,r) = unwindType t 
+      let (ts,r) = splitTy t 
           param (Typed n t) t1 = Typed (Id n t1) t1 
           param (Untyped n) t1 = Typed (Id n t1) t1
           params' = zipWith param (sigParams sig) ts
@@ -252,11 +252,6 @@ tcSig (sig, (Forall _ (_ :=> t)))
                       (sigName sig)
                       params'
                       (Just r))
-
-unwindType :: Ty -> ([Ty], Ty)
-unwindType (a :-> b) 
-  = let (as, r) = unwindType b in (a:as, r)
-unwindType t = ([], t)
 
 -- type checking binding groups
 
