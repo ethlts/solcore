@@ -28,7 +28,13 @@ type ConInfo = (Name, Scheme)
 
 -- number of weak parameters and method names
 type Method = Name 
-type ClassInfo = (Arity, [Method], Pred)
+data ClassInfo 
+  = ClassInfo {
+      classArity :: Arity
+    , methods :: [Method]
+    , classpred :: Pred
+    }
+
 type Table a = Map Name a 
 
 -- typing environment 

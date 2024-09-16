@@ -186,42 +186,39 @@ tcField (Field n t _)
       extEnv n (monotype t)
       pure (Field n t Nothing)
 
--- type checking instance body 
-
 tcInstance :: Instance Name -> TcM (Instance Id)
 tcInstance idecl@(Instance ctx n ts t funs) 
   = do
-      (funs', pss', ts') <- unzip3 <$> mapM tcFunDef  funs
-      schs <- mapM (askEnv . sigName . funSignature) funs' 
-      let 
-          ts1 = map (\ (Forall _ (_ :=> t)) -> t) schs
-          s' = renameSubst1 ts'
-      s <- unifyTypes ts' ts1
-      let ist = apply s' (Instance ctx n ts t funs')
-      pure ist
+      funs' <- buildSignatures n ts t funs  
+      (funs1, pss', ts') <- unzip3 <$> mapM tcFunDef  funs' `wrapError` idecl
+      withCurrentSubst (Instance ctx n ts t funs1)
 
-renameSubst :: [Ty] -> Subst 
-renameSubst ts 
-  = Subst (zip vs' vs) 
+buildSignatures :: Name -> [Ty] -> Ty -> [FunDef Name] -> TcM [FunDef Name]
+buildSignatures n ts t funs 
+  = do 
+      cpred <- classpred <$> askClassInfo n 
+      sm <- matchPred cpred (InCls n t ts) 
+      schs <- mapM (askEnv . sigName . funSignature) funs 
+      let  
+          app (Forall vs (_ :=> t1)) = apply sm t1
+          tinsts = map app schs
+      zipWithM buildSignature tinsts funs 
+
+buildSignature :: Ty -> FunDef Name -> TcM (FunDef Name)
+buildSignature t (FunDef sig bd)
+  = do 
+      let (args, ret) = splitTy t 
+          sig' = typeSignature args ret sig
+      pure (FunDef sig' bd)
+
+typeSignature :: [Ty] -> Ty -> Signature Name -> Signature Name 
+typeSignature args ret sig 
+  = sig { sigParams = zipWith paramType args (sigParams sig)
+        , sigReturn = Just ret
+        }
     where 
-      vs = map TyVar (fv ts)
-      vs' = map TVar namePool
-
-renameSubst1 :: [Ty] -> Subst 
-renameSubst1 ts 
-  = Subst (zip vs vs') 
-    where 
-      vs = fv ts
-      vs' = map (TyVar . TVar) namePool
-
-
-
-instanceTypes :: Instance Id -> [Ty]
-instanceTypes (Instance ctx _ ts t funs) 
-  = foldr union [] [concatMap ctxTypes ctx, t : ts]  
-    where 
-      ctxTypes (InCls _ x xs) = x : xs  
-
+      paramType t (Typed n _) = Typed n t
+      paramType t (Untyped n) = Typed n t 
 
 tcClass :: Class Name -> TcM (Class Id)
 tcClass iclass@(Class ctx n vs v sigs) 
@@ -255,7 +252,7 @@ tcBindGroup :: [FunDef Name] -> TcM [FunDef Id]
 tcBindGroup binds 
   = do
       funs <- mapM scanFun binds
-      (funs', pss, ts) <- unzip3 <$> mapM tcFunDef funs
+      (funs', pss, ts) <- unzip3 <$> mapM tcFunDef funs 
       ts' <- withCurrentSubst ts  
       schs <- mapM generalize (zip pss ts')
       let names = map (sigName . funSignature) funs 
@@ -293,8 +290,8 @@ tcFunDef :: FunDef Name -> TcM (FunDef Id, [Pred], Ty)
 tcFunDef d@(FunDef sig bd) 
   = withLocalEnv do
       -- checking if the function isn't defined 
-      (params', ts) <- unzip <$> mapM addArg (sigParams sig)
-      (bd', ps1, t') <- tcBody bd
+      (params', schs, ts) <- tcArgs (sigParams sig)
+      (bd', ps1, t') <- withLocalCtx schs (tcBody bd)
       sch <- askEnv (sigName sig)
       (ps :=> t) <- freshInst sch
       let t1 = foldr (:->) t' ts
@@ -449,7 +446,7 @@ addClassInfo n ar ms p
       ct <- gets classTable
       when (Map.member n ct) (duplicatedClassDecl n)
       modify (\ env -> 
-        env{ classTable = Map.insert n (ar, ms, p) (classTable env)})
+        env{ classTable = Map.insert n (ClassInfo ar ms p) (classTable env)})
 
 addClassMethod :: Pred -> Signature Name -> TcM ()
 addClassMethod p@(InCls _ _ _) sig@(Signature _ ctx f ps t) 

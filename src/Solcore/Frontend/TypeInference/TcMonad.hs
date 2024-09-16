@@ -57,7 +57,6 @@ getEnvFreeVars
 unify :: Ty -> Ty -> TcM Subst
 unify t t' 
   = do
-      -- info ["Unifying:", pretty t, " with ", pretty t']
       s <- getSubst 
       s' <- mgu (apply s t) (apply s t')
       extSubst s'
@@ -66,9 +65,7 @@ unify t t'
 
 freshInst :: Scheme -> TcM (Qual Ty)
 freshInst (Forall vs qt)
-  = renameVars vs' qt
-    where 
-      vs' = vs `union` fv qt
+  = renameVars vs qt
 
 renameVars :: HasType a => [Tyvar] -> a -> TcM a 
 renameVars vs t 
@@ -169,6 +166,14 @@ withLocalEnv ta
 
 envList :: TcM [(Name, Scheme)]
 envList = gets (Map.toList . ctx)
+
+-- asking class info
+
+askClassInfo :: Name -> TcM ClassInfo 
+askClassInfo n 
+  = do 
+      r <- Map.lookup n <$> gets classTable
+      maybe (undefinedClass n) pure r 
 
 -- environment operations: variables 
 
@@ -294,3 +299,7 @@ undefinedFunction t n
                          , "does not define function:"
                          , pretty n
                          ]
+
+undefinedClass :: Name -> TcM a 
+undefinedClass n 
+  = throwError $ unlines ["Undefined class:", pretty n]
