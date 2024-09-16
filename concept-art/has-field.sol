@@ -34,11 +34,11 @@ instance Pair(s, sf3):Field(Pair(uint, Pair(string, Unit)), bool) {}
 
 // struct field member access desugars into calls to this class
 class self:HasField(fieldType) {
-  function getField(x:sef) -> fieldType;
+  function getField(x:self) -> fieldType;
 }
 
 // we instantiate generic instances for references to types that implement Field
-instance (Pair(t, fieldName):Field(prevTypes, fieldType), fieldType:ValueType) => Pair(Memory(t), fieldName):HasField(fieldType) {
+instance (Pair(t, fieldName):Field(prevTypes, fieldType), fieldType:ValueType) => Pair(Memory(t), fieldName):HasField(Memory(fieldType)) {
   function getField(x : Pair(Memory(T), fieldName)) -> fieldType {
     // TODO: define this function...
     let x : Proxy(prevTypes) = Proxy;
