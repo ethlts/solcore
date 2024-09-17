@@ -409,6 +409,6 @@ parseError (Token (line, col) lexeme)
   = alexError $ "Parse error while processing lexeme: " ++ show lexeme
                 ++ "\n at line " ++ show line ++ ", column " ++ show col
 
-lexer :: (Token -> Alex a) -> Alex a 
+lexer :: (Token -> Alex a) -> Alex a
 lexer = (=<< alexMonadScan)
 }
