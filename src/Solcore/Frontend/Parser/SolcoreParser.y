@@ -110,7 +110,7 @@ Decl : FieldDef                                    {CFieldDecl $1}
 -- type synonym 
 
 TypeSynonym :: {TySym}
-TypeSynonym : 'type' Name OptParam '=' Type                 {TySym $2 $3 $5}
+TypeSynonym : 'type' Con OptParam '=' Type                 {TySym $2 $3 $5}
 
 -- fields 
 
@@ -405,7 +405,6 @@ OptSemi : ';'                                      { () }
         | {- empty -}                              { () }
 
 {
-parseError :: Token -> Alex a
 parseError (Token (line, col) lexeme)
   = alexError $ "Parse error while processing lexeme: " ++ show lexeme
                 ++ "\n at line " ++ show line ++ ", column " ++ show col

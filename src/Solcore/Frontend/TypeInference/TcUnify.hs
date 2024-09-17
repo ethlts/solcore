@@ -87,9 +87,9 @@ merge s1@(Subst p1) s2@(Subst p2) = if agree then pure (Subst (p1 ++ p2))
   where
     disagree = foldr step [] (dom p1 `intersect` dom p2)
     step v ac 
-      | apply s1 (TyVar v) == apply s2 (TyVar v) = ac 
+      | alphaEq (apply s1 (TyVar v)) (apply s2 (TyVar v)) = ac 
       | otherwise = (apply s1 (TyVar v), apply s2 (TyVar v)) : ac 
-    agree = all (\v -> apply s1 (TyVar v) == apply s2 (TyVar v))
+    agree = all (\v -> alphaEq (apply s1 (TyVar v)) (apply s2 (TyVar v)))
                 (dom p1 `intersect` dom p2)
     dom s = map fst s
 
