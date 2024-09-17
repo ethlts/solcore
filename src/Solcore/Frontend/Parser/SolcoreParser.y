@@ -110,7 +110,7 @@ Decl : FieldDef                                    {CFieldDecl $1}
 -- type synonym 
 
 TypeSynonym :: {TySym}
-TypeSynonym : 'type' Con OptParam '=' Type                 {TySym $2 $3 $5}
+TypeSynonym : 'type' Con OptParam '=' Type         {TySym $2 $3 $5}
 
 -- fields 
 

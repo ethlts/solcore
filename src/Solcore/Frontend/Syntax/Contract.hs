@@ -21,8 +21,16 @@ data TopDecl a
   | TInstDef (Instance a)
   | TMutualDef [TopDecl a]
   | TDataDef DataTy
-  | TSym TySym 
+  | TSym TySym
+  | TPragma Pragma 
   deriving (Eq, Ord, Show, Data, Typeable)
+
+data Pragma 
+  = NoCoverageCondition
+  | NoCoverageConditionFor Name 
+  | NoPatternCondition 
+  | NoPatternConditionFor Name 
+  deriving (Eq, Ord, Show)
 
 newtype Import 
   = Import { unImport :: QualName }
