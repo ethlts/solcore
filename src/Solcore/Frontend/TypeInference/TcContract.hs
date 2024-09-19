@@ -8,6 +8,7 @@ import Control.Monad.State
 import Data.Generics
 import Data.List
 import qualified Data.Map as Map
+import Data.Maybe
 
 import Solcore.Frontend.Pretty.SolcorePretty
 import Solcore.Frontend.Syntax
@@ -481,7 +482,7 @@ checkClass icls@(Class ps n vs v sigs)
             let ft = funtype pst t' 
             unless (v `elem` fv ft)
                    (signatureError n v sig ft)
-            addClassMethod p sig 
+            addClassMethod p sig `wrapError` icls 
 
 addClassInfo :: Name -> Arity -> [Method] -> Pred -> TcM ()
 addClassInfo n ar ms p
@@ -500,6 +501,8 @@ addClassMethod p@(InCls _ _ _) sig@(Signature _ ctx f ps t)
       let ty = funtype tps t'
           vs = fv ty
           ctx' = [p] `union` ctx
+      r <- maybeAskEnv f 
+      unless (isNothing r) (duplicatedClassMethod f `wrapError` sig)
       extEnv f (Forall vs (ctx' :=> ty))
 addClassMethod p@(_ :~: _) (Signature _ _ n _ _) 
   = throwError $ unlines [

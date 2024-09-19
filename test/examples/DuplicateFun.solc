@@ -1,0 +1,21 @@
+
+class self:A {
+  function foo(p : self) -> Word;
+}
+
+class self:B {
+  function foo(p : self) -> Word;
+}
+
+instance Word:B {
+  function foo(x : Word) -> Word {
+    return x;
+  }
+}
+
+// error: Constraint for A not found in type of foo
+instance Word:A {
+  function foo(x : Word) -> Word {
+    return x;
+  }
+}
