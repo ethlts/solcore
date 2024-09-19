@@ -46,9 +46,6 @@ library
 
   -- cabal-fmt: expand src
   exposed-modules:
---      Solcore.Desugarer.CallDesugarer
---      Solcore.Desugarer.Defunctionalization
---      Solcore.Desugarer.ExaustivenessCheck
       Solcore.Desugarer.LambdaLifting
       Solcore.Desugarer.MatchCompiler
       Solcore.Desugarer.ReplaceWildcard
@@ -131,4 +128,5 @@ test-suite sol-core-tests
   build-depends:
     , sol-core
     , tasty
-    , tasty-hunit
+    , tasty-program
+    , tasty-expected-failure

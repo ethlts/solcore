@@ -170,6 +170,7 @@ instance HasDeps (TopDecl Name) where
 
 instance HasDeps (ContractDecl Name) where 
   nameOf (CFunDecl fd) = [sigName $ funSignature fd]
+  nameOf (CMutualDecl ds) = concatMap nameOf ds --- FIXME 
   mkMutual = CMutualDecl 
   isDecl (CFunDecl _) = True 
   isDecl _ = False 

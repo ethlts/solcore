@@ -17,6 +17,8 @@ import Solcore.Frontend.TypeInference.TcEnv
 import Solcore.Desugarer.Specialise(specialiseCompUnit)
 import Solcore.Desugarer.EmitCore(emitCore)
 
+import System.Exit
+
 -- main compiler driver function
 
 pipeline :: IO ()
@@ -59,7 +61,12 @@ pipeline = do
 
 
 withErr :: Either String a -> (a -> IO ()) -> IO ()
-withErr r f = either putStrLn f r
+withErr r f 
+  = either err f r
+    where 
+      err s = do 
+                putStrLn s 
+                exitWith (ExitFailure 1)
 
 -- parsing command line arguments
 

@@ -22,18 +22,11 @@ contract EitherModule {
     };
   }
 
-  function either(f,g,x) {
-    match x {
-    | Left(y) => return f(y);
-    | Right(z) => return g(z);
-    };
-  }
-
   function foo0() {
     return either((lam (x) {return 1;}), (lam (x) {return 0;}), Right(1));
   }
 
   function foo1(z) {
-    return either((lam (x) {return (primAddWord(1, z));}), (lam (x) {return 0;}), Right[1]);
+    return either((lam (x) {return (primAddWord(1, z));}), (lam (x) {return 0;}), Right(1));
   }
 }

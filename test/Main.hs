@@ -1,109 +1,88 @@
 module Main where
 
-import Data.Map (Map)
-import qualified Data.Map as Map
-
-import Solcore.Desugarer.Defunctionalization
-import Solcore.Frontend.TypeInference.Id
-import Solcore.Frontend.Syntax
-import Solcore.Primitives.Primitives 
-
 import Test.Tasty 
-import Test.Tasty.HUnit
+import Test.Tasty.Program
+import Test.Tasty.ExpectedFailure 
 
 main :: IO ()
 main = defaultMain tests 
 
 tests :: TestTree 
 tests 
-  = testGroup "Tests" 
+  = testGroup "Tests"
+               [
+                 cases
+               , pragmas
+               ]
+
+pragmas :: TestTree 
+pragmas 
+  = testGroup "Files for pragmas cases"
               [
-                defunctionalization
+                expectFail $ runTestForFile "bound.solc" pragmaFolder
+              , runTestForFile "coverage.solc" pragmaFolder
+              , runTestForFile "patterson.solc" pragmaFolder
               ]
+    where 
+      pragmaFolder = "./test/examples/pragmas"
 
-defunctionalization :: TestTree 
-defunctionalization 
-  = testGroup "Defunctionalization tests"
+cases :: TestTree 
+cases 
+  = testGroup "Files for folder cases"
               [
-                testCase "collectArgs test" $ 
-                  collectArgs functionName [filterLam1, filterLam2] 
-                    @?= lamDefMap
-              , testCase "createDataTy test" $ 
-                  map (createDataTy contractName) (Map.toList lamDefMap) 
-                    @?= [dt]
+                runTestForFile "Ackermann.solc" caseFolder 
+              , expectFail $ runTestForFile "BadInstance.solc" caseFolder
+              , runTestForFile "BoolNot.solc" caseFolder
+              , expectFail $ runTestForFile "Compose.solc" caseFolder
+              , expectFail $ runTestForFile "DupFun.solc" caseFolder
+              , expectFail $ runTestForFile "DuplicateFun.solc" caseFolder
+              , expectFail $ runTestForFile "EitherModule.solc" caseFolder -- XXX remove warning (check with Marcin)
+              , runTestForFile "Enum.solc" caseFolder
+              , runTestForFile "Eq.solc" caseFolder
+              , expectFail $ runTestForFile "EvenOdd.solc" caseFolder --- FIXME
+              , runTestForFile "Filter.solc" caseFolder
+              , runTestForFile "Foo.solc" caseFolder
+              , expectFail $ runTestForFile "GetSet.solc" caseFolder --- FIXME
+              , runTestForFile "GoodInstance.solc" caseFolder
+              , expectFail $ runTestForFile "Id.solc" caseFolder --- FIXME remove warning (check with Marcin)
+              , runTestForFile "IncompleteInstDef.solc" caseFolder 
+              , runTestForFile "Invokable.solc" caseFolder
+              , expectFail $ runTestForFile "ListModule.solc" caseFolder --- FIXME remove warning (check with Marcin)
+              , expectFail $ runTestForFile "Logic.solc" caseFolder --- FIXME remove warning (check with Marcin)
+              , expectFail $ runTestForFile "Memory1.solc" caseFolder --- FIXME  
+              , expectFail $ runTestForFile "Memory2.solc" caseFolder --- FIXME 
+              , runTestForFile "Mutuals.solc" caseFolder
+              , runTestForFile "NegPair.solc" caseFolder
+              , expectFail $ runTestForFile "Option.solc" caseFolder --- FIXME remove warning (check with Marcin)
+              , expectFail $ runTestForFile "Pair.solc" caseFolder -- FIXME remove warning
+              , expectFail $ runTestForFile "PairMatch1.solc" caseFolder 
+              , expectFail $ runTestForFile"PairMatch2.solc" caseFolder
+              , expectFail $ runTestForFile "Peano.solc" caseFolder -- FIXME remove warning (check with Marcin)
+              , runTestForFile "PeanoMatch.solc" caseFolder
+              , runTestForFile "RefDeref.solc" caseFolder
+              , expectFail $ runTestForFile "SillyReturn.solc" caseFolder
+              , expectFail $ runTestForFile "SimpleField.solc" caseFolder -- FIXME remove warning (check with Marcin)
+              , expectFail $ runTestForFile "SimpleInvoke.solc" caseFolder -- FIXME
+              , expectFail $ runTestForFile "SimpleLambda.solc" caseFolder -- FIXME remove warning (check with Marcin)
+              , runTestForFile "SingleFun.solc" caseFolder
+              , runTestForFile "assembly.solc" caseFolder
               ]
+    where 
+      caseFolder = "./test/examples/cases"
+
+-- basic infrastructure for tests 
+
+type FileName = String 
+type BaseFolder = String 
+
+runTestForFile :: FileName -> BaseFolder -> TestTree 
+runTestForFile file folder 
+  = testProgram file "cabal" (basicOptions ++ [folder ++ "/" ++ file]) Nothing 
+
+basicOptions :: [String]
+basicOptions = [ "new-run"
+               , "sol-core"
+               , "--"
+               , "-f"] 
 
 
--- test inputs for creating data types for defunctionalization
-
-contractName :: Name 
-contractName = Name "TestContract"
-
-functionName :: Name 
-functionName = Name "filter"
-
-isOddName :: Name 
-isOddName = Name "isOdd"
-
-bool :: Ty 
-bool = TyCon (Name "Bool") []
-
-filterLam1 :: Exp Id 
-filterLam1 
-  = Lam [xparam] [(StmtExp (Call Nothing isOddName [Var xid]))]
-
-filterLam2 :: Exp Id 
-filterLam2 
-  = Lam [xparam] [StmtExp (Call Nothing (Name "isLt") [Var xid, Var yid])]
-
-lamDefMap :: Map Name [LamDef] 
-lamDefMap   
-  = Map.insert functionName [case1, case2]
-                            Map.empty 
-
-case1 :: LamDef 
-case1 = LamDef [xparam]
-               [StmtExp (Call Nothing isOddName [Var xid])]
-
-case2 :: LamDef 
-case2 = LamDef [xparam]
-               [StmtExp (Call Nothing (Name "isLt") [ Var xid
-                                                    , Var yid])]
-
-xparam :: Param Id 
-xparam = Typed xid word 
-
-xid :: Id 
-xid = Id (Name "x") word 
-
-yid :: Id 
-yid = Id (Name "y") word
-
--- results 
-
-cs :: String 
-cs = "TestContract_filter"
-
-tc :: Ty 
-tc = TyCon (Name cs) []
-
-dcn0 :: Name 
-dcn0 = Name (cs ++ "0")
-
-dcts0 :: [Ty]
-dcts0 = []
-
-dc0 :: Constr 
-dc0 = Constr dcn0 dcts0
-
-dcn1 :: Name 
-dcn1 = Name (cs ++ "1")
-
-dcts1 :: [Ty]
-dcts1 = [word]
-
-dc1 :: Constr 
-dc1 = Constr dcn1 dcts1 
-
-dt :: DataTy 
-dt = DataTy (Name cs) [] [dc0, dc1]

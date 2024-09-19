@@ -17,7 +17,21 @@ lambdaLifting unit
   = case runLiftM (liftLambda unit) (collect unit) of 
       Left err -> Left err 
       Right (CompUnit imps ds, env) ->
-       Right (CompUnit imps (generated env ++ ds), debugInfo env)  
+       Right (CompUnit imps (combine (generated env) ds), debugInfo env)  
+
+combine :: [TopDecl Name] -> [TopDecl Name] -> [TopDecl Name]
+combine gs ds 
+  = filter (\ x -> name' x `notElem` ns) gs ++ ds 
+  where 
+    ns = map name' ds 
+    name' (TContr c) = name c 
+    name' (TClassDef c) = className c 
+    name' (TInstDef is) = instName is 
+    name' (TDataDef d) = dataName d 
+    name' (TFunDef f) = sigName $ funSignature f 
+    name' (TSym t) = symName t 
+    name' (TPragmaDecl d) = Name $ pretty d
+    name' (TMutualDef ms) = Name $ concatMap pretty ms
 
 -- lifting lambdas
 
