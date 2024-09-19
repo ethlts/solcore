@@ -525,7 +525,7 @@ checkInstance idef@(Instance ctx n ts t funs)
       insts <- askInstEnv n `wrapError` ipred
       checkOverlap ipred insts
       coverage <- askCoverage n
-      when coverage (checkCoverage n ts t `wrapError` idef)
+      unless coverage (checkCoverage n ts t `wrapError` idef)
       -- checking Patterson condition
       patterson <- askPattersonCondition n 
       unless patterson (checkMeasure ctx ipred `wrapError` idef)
