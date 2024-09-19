@@ -29,16 +29,15 @@ tcStmt e@(lhs := rhs)
   = do 
       (lhs1, ps1, t1) <- tcExp lhs
       (rhs1, ps2, t2) <- tcExp rhs 
-      s <- match t2 t1 `wrapError` e
-      extSubst s
-      pure (lhs1 := rhs1, apply s (ps1 ++ ps2), unit)
+      typeMatch t2 t1 `wrapError` e
+      pure (lhs1 := rhs1, (ps1 ++ ps2), unit)
 tcStmt e@(Let n mt me)
   = do
       (me', psf, tf) <- case (mt, me) of
                       (Just t, Just e1) -> do 
                         (e', ps1,t1) <- tcExp e1 
-                        s <- match t1 t `wrapError` e
-                        pure (Just e', apply s ps1, apply s t1)
+                        typeMatch t1 t `wrapError` e
+                        pure (Just e', ps1, t1)
                       (Just t, Nothing) -> do 
                         return (Nothing, [], t)
                       (Nothing, Just e) -> do 
@@ -404,6 +403,16 @@ instance HasType (Pat Id) where
 
 
 -- errors 
+
+typeMatch :: Ty -> Ty -> TcM ()
+typeMatch t1 t2 
+  = unless (alphaEq t1 t2) $ 
+      throwError $ unwords ["Types"
+                           , pretty t1
+                           , "and"
+                           , pretty t2
+                           , "do not match"
+                           ]
 
 invalidYulType :: Name -> TcM a 
 invalidYulType (Name n)
