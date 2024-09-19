@@ -1,0 +1,3 @@
+function foo(p: Word) -> Word {
+    return p;
+}
