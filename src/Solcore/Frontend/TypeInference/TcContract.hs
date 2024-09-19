@@ -562,10 +562,11 @@ anfInstance inst@(q :=> p@(InCls c t as)) = q ++ q' :=> InCls c t bs
 
 checkMeasure :: [Pred] -> Pred -> TcM ()
 checkMeasure ps c 
-  = if measure ps < measure c then return () 
+  = if all smaller ps then return ()
     else throwError $ unlines [ "Instance "
                               , pretty c
                               , "does not satisfy the Patterson conditions."]
+    where smaller p = measure p < measure c
 
 -- error for class definitions 
 

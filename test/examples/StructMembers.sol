@@ -110,7 +110,7 @@ instance (
 ) => MemberAccess(Memory(structType), fieldType,
     // Needs ridiculous amounts of constructor applications due to incorrect implementation of the Paterson Condition
     // Needs to mention "ty" due to non-relaxed Coverage Condition
-    Memory(Memory(Memory(Memory(Memory(Memory(ty))))))
+    Memory(ty)
 ):Ref(ty)
 {
     function load(x) {
@@ -131,7 +131,7 @@ function test()
 {
     let x:Memory(S);
     let memberAccess:MemberAccess(Memory(S), Field_x,
-                                  Memory(Memory(Memory(Memory(Memory(Memory(Uint256)))))) // will become unnecessary
+                                  Memory(Uint256) // will become unnecessary
     );
     memberAccess = MemberAccess(x);
     let result = load(memberAccess);
