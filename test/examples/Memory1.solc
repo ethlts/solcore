@@ -1,0 +1,6 @@
+data Memory(a) = Memory(Word)
+
+function g() {
+    let x : Memory(Memory(Word));
+    x = Memory(0);
+}
