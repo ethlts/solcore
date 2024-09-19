@@ -37,11 +37,15 @@ tcCompUnit :: CompUnit Name -> TcM (CompUnit Id)
 tcCompUnit (CompUnit imps cs)
   = do 
       loadImports imps
+      setupPragmas ps 
       mapM_ checkTopDecl cls 
       mapM_ checkTopDecl cs'
       cs' <- mapM tcTopDecl' cs 
       pure (CompUnit imps cs')
     where
+      ps = foldr step [] cs 
+      step (TPragmaDecl p) ac = p : ac 
+      step _ ac = ac 
       (cls, cs') = partition isClass cs 
       isClass (TClassDef _) = True 
       isClass _ = False 
@@ -51,6 +55,34 @@ tcCompUnit (CompUnit imps cs)
         s <- getSubst 
         pure (everywhere (mkT (applyI s)) d')
 
+setupPragmas :: [Pragma] -> TcM ()
+setupPragmas ps 
+  = do
+      unless validPragmas (invalidPragmaDecl ps)
+      mapM_ setupPragma ps 
+    where
+      setupPragma (Pragma NoBoundVariableCondition ns)
+        = setBoundVariableCondition ns 
+      setupPragma (Pragma NoPattersonCondition ns) 
+        = setPattersonCondition ns 
+      setupPragma (Pragma NoCoverageCondition ns) 
+        = setCoverage ns 
+      single [] = True 
+      single [ _ ] = True 
+      single _ = False 
+      isBound NoBoundVariableCondition = True 
+      isBound _ = False 
+      isPatterson NoPattersonCondition = True 
+      isPatterson _ = False 
+      isCoverage NoCoverageCondition = True 
+      isCoverage _ = False 
+
+      unique p xs = single (filter (p . pragmaType) xs)
+
+      validPragmas = and [ unique isBound ps 
+                         , unique isPatterson ps 
+                         , unique isCoverage ps 
+                         ] 
 
 tcTopDecl :: TopDecl Name -> TcM (TopDecl Id)
 tcTopDecl (TContr c) 
@@ -74,6 +106,8 @@ tcTopDecl (TDataDef d)
   = do 
     checkDataType d
     pure (TDataDef d)
+tcTopDecl (TPragmaDecl d) 
+  = pure (TPragmaDecl d)
 
 checkTopDecl :: TopDecl Name -> TcM ()
 checkTopDecl (TClassDef c) 
@@ -431,10 +465,12 @@ checkClasses :: [Class Name] -> TcM ()
 checkClasses = mapM_ checkClass 
 
 checkClass :: Class Name -> TcM ()
-checkClass (Class ps n vs v sigs) 
+checkClass icls@(Class ps n vs v sigs) 
   = do 
       let p = InCls n (TyVar v) (TyVar <$> vs)
-          ms' = map sigName sigs 
+          ms' = map sigName sigs
+      bound <- askBoundVariableCondition n
+      unless bound (checkBoundVariable ps (v:vs) `wrapError` icls)
       addClassInfo n (length vs) ms' p
       mapM_ (checkSignature p) sigs 
     where
@@ -453,7 +489,8 @@ addClassInfo n ar ms p
       ct <- gets classTable
       when (Map.member n ct) (duplicatedClassDecl n)
       modify (\ env -> 
-        env{ classTable = Map.insert n (ClassInfo ar ms p) (classTable env)})
+        env{ classTable = Map.insert n (ClassInfo ar ms p) 
+                                       (classTable env)})
 
 addClassMethod :: Pred -> Signature Name -> TcM ()
 addClassMethod p@(InCls _ _ _) sig@(Signature _ ctx f ps t) 
@@ -478,21 +515,33 @@ checkInstances :: [Instance Name] -> TcM ()
 checkInstances = mapM_ checkInstance 
 
 checkInstance :: Instance Name -> TcM ()
-checkInstance (Instance ctx n ts t funs)
+checkInstance idef@(Instance ctx n ts t funs)
   = do
       let ipred = InCls n t ts
       -- checking the coverage condition 
       insts <- askInstEnv n `wrapError` ipred
       checkOverlap ipred insts
-      coverage <- askCoverage
-      when coverage (checkCoverage n ts t `wrapError` ipred)
-      -- checking Patterson condition 
-      checkMeasure ctx ipred `wrapError` ipred
+      coverage <- askCoverage n
+      when coverage (checkCoverage n ts t `wrapError` idef)
+      -- checking Patterson condition
+      patterson <- askPattersonCondition n 
+      unless patterson (checkMeasure ctx ipred `wrapError` idef)
+      -- checking bound variable condition
+      bound <- askBoundVariableCondition n 
+      unless bound (checkBoundVariable ctx (fv (t : ts)) `wrapError` idef)
       -- checking instance methods
       mapM_ (checkMethod ipred) funs
       let ninst = anfInstance $ ctx :=> InCls n t ts 
       -- add to the environment
       addInstance n ninst 
+
+-- bound variable check 
+
+checkBoundVariable :: [Pred] -> [Tyvar] -> TcM () 
+checkBoundVariable ps vs 
+  = unless (all (\ v -> v `elem` vs) (fv ps)) $ do 
+      throwError "Bounded variable condition fails!"
+
 
 checkOverlap :: Pred -> [Inst] -> TcM ()
 checkOverlap _ [] = pure ()
@@ -502,12 +551,15 @@ checkOverlap p@(InCls _ t _) (i:is)
         case i' of 
           (ps :=> (InCls _ t' _)) -> 
             case mgu t t' of
-              Right _ -> throwError (unlines ["instance:"
+              Right _ -> throwError (unlines [ "Overlapping instances are not supported" 
+                                             , "instance:"
                                              , pretty p
-                                             , "with:"
+                                             , "overlaps with:"
                                              , pretty i'])
               Left _ -> checkOverlap p is
         return ()
+
+-- check coverage condition 
 
 checkCoverage :: Name -> [Ty] -> Ty -> TcM ()
 checkCoverage cn ts t 
@@ -598,6 +650,10 @@ duplicatedClassMethod n
 duplicatedFunDef :: Name -> TcM () 
 duplicatedFunDef n 
   = throwError $ "Duplicated function definition:" ++ pretty n
+
+invalidPragmaDecl :: [Pragma] -> TcM () 
+invalidPragmaDecl ps 
+  = throwError $ unlines $ ["Invalid pragma definitions:"] ++ map pretty ps 
 
 -- Instances for elaboration 
 

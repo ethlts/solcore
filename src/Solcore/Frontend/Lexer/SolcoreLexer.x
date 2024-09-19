@@ -38,8 +38,8 @@ tokens :-
         <state_comment> .                        ;  
         <state_comment> \n                       ;
 
-        -- keywords, and operators 
-        
+        -- keywords, and operators
+
         <0>    "contract"                        {simpleToken TContract}
         <0>    "import"                          {simpleToken TImport}
         <0>    "let"                             {simpleToken TLet}
@@ -66,6 +66,10 @@ tokens :-
         <0>    "break"                           {simpleToken TBreak}
         <0>    "lam"                             {simpleToken TLam}
         <0>    "assembly"                        {simpleToken TAssembly}
+        <0>    "pragma"                          {simpleToken TPragma}
+        <0>    "no-coverage-condition"           {simpleToken TNoCoverageCondition}
+        <0>    "no-patterson-condition"          {simpleToken TNoPattersonCondition}
+        <0>    "no-bounded-variable-condition"     {simpleToken TNoBoundVariableCondition}
         <0>    "->"                              {simpleToken TArrow}
         <0>    "=>"                              {simpleToken TDArrow}
         <0>    ";"                               {simpleToken TSemi}
@@ -142,8 +146,7 @@ data Token
 data Lexeme    
   = TIdent { unIdent :: String }
   | TTycon { unCon :: String }
-  -- TODO: this should be able to support 256bit literals (i.e. change to Integer or Word256 or smth...)
-  | TNumber { unNum :: Int }
+  | TNumber { unNum :: Integer }
   | TString { unStr :: String }
   | TContract 
   | TImport 
@@ -180,8 +183,12 @@ data Lexeme
   | TRParen
   | TLBrace
   | TRBrace
+  | TPragma
   | TLBrack
   | TRBrack
+  | TNoCoverageCondition
+  | TNoPattersonCondition
+  | TNoBoundVariableCondition
   | TBar 
   | TEOF 
   deriving (Eq, Ord, Show)
@@ -208,6 +215,13 @@ mkIdent (st, _, _, str) len
       "default" -> return $ Token (position st) TDefault
       "type" -> return $ Token (position st) TType
       "forall" -> return $ Token (position st) TForall
+      "pragma" -> return $ Token (position st) TPragma
+      "no-coverage-condition" -> 
+        return $ Token (position st) TNoCoverageCondition
+      "no-patterson-condition" -> 
+        return $ Token (position st) TNoPattersonCondition
+      "no-bounded-variable-condition" -> 
+        return $ Token (position st) TNoBoundVariableCondition
       _ -> return $ Token (position st) (TIdent $ take len str)
 
 mkCon :: AlexAction Token 
@@ -222,7 +236,7 @@ mkHexlit :: AlexAction Token
 mkHexlit (st, _, _, str) len
   = pure $ Token (position st) (TNumber $ parseHex $ take len str)
 
-parseHex :: String -> Int
+parseHex :: String -> Integer 
 parseHex str = case readHex (drop 2 str) of
     [(n, "")] -> n
     _         -> error "impossible :)"

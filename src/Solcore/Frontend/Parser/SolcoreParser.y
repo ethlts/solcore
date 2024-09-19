@@ -1,6 +1,8 @@
 {
 module Solcore.Frontend.Parser.SolcoreParser where
 
+import Data.List.NonEmpty 
+
 import Solcore.Frontend.Lexer.SolcoreLexer hiding (lexer)
 import Solcore.Frontend.Syntax.Contract
 import Solcore.Frontend.Syntax.Name
@@ -46,6 +48,10 @@ import Language.Yul
       'return'   {Token _ TReturn}
       'lam'      {Token _ TLam}
       'type'     {Token _ TType}
+      'no-patterson-condition' {Token _ TNoPattersonCondition}
+      'no-coverage-condition'  {Token _ TNoCoverageCondition}
+      'no-bounded-variable-condition' {Token _ TNoBoundVariableCondition}
+      'pragma'      {Token _ TPragma}
       ';'        {Token _ TSemi}
       ':='       {Token _ TYAssign}
       ':'        {Token _ TColon}
@@ -88,6 +94,25 @@ TopDecl : Contract                                 {TContr $1}
         | InstDef                                  {TInstDef $1}
         | DataDef                                  {TDataDef $1}
         | TypeSynonym                              {TSym $1}
+        | Pragma                                   {TPragmaDecl $1}
+
+-- pragmas 
+
+Pragma :: {Pragma}
+Pragma : 'pragma' 'no-coverage-condition' Status ';'  
+            {Pragma NoCoverageCondition $3 }
+       | 'pragma' 'no-patterson-condition' Status ';' 
+           {Pragma NoPattersonCondition $3}
+       | 'pragma' 'no-bounded-variable-condition' Status ';' 
+          { Pragma NoBoundVariableCondition $3}
+
+Status :: {PragmaStatus}
+Status : NameList       {DisableFor $1}
+       | {- empty -}    {DisableAll}
+
+NameList :: {NonEmpty Name}
+NameList : Con ',' NameList { cons $1 $3 }
+         | Con              { singleton $1 }
 
 -- contracts 
 

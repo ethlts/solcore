@@ -1,6 +1,7 @@
 module Solcore.Frontend.Syntax.Contract where
 
 import Data.Generics (Data, Typeable)
+import Data.List.NonEmpty 
 
 import Solcore.Frontend.Syntax.Name
 import Solcore.Frontend.Syntax.Stmt
@@ -22,15 +23,28 @@ data TopDecl a
   | TMutualDef [TopDecl a]
   | TDataDef DataTy
   | TSym TySym
-  | TPragma Pragma 
+  | TPragmaDecl Pragma 
+  deriving (Eq, Ord, Show, Data, Typeable)
+
+-- empty list in pragma: restriction on all class / instances 
+
+data PragmaType 
+  = NoCoverageCondition
+  | NoPattersonCondition
+  | NoBoundVariableCondition
+  deriving (Eq, Ord, Show, Data, Typeable)
+
+data PragmaStatus 
+  = Enabled
+  | DisableAll 
+  | DisableFor (NonEmpty Name)
   deriving (Eq, Ord, Show, Data, Typeable)
 
 data Pragma 
-  = NoCoverageCondition
-  | NoCoverageConditionFor Name 
-  | NoPatternCondition 
-  | NoPatternConditionFor Name 
-  deriving (Eq, Ord, Show)
+  = Pragma {
+      pragmaType :: PragmaType
+    , pragmaStatus :: PragmaStatus
+    } deriving (Eq, Ord, Show, Data, Typeable)
 
 newtype Import 
   = Import { unImport :: QualName }

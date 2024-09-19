@@ -58,7 +58,9 @@ data TcEnv
     , logs :: [String]         -- Logging
     , warnings :: [String]     -- warnings collected to user 
     , enableLog :: Bool        -- Enable logging?
-    , enableCoverage :: Bool   -- Enable coverage checking?
+    , coverage :: PragmaStatus   -- Disable coverage checking for names. 
+    , patterson :: PragmaStatus  -- Disable Patterson condition for names. 
+    , boundVariable :: PragmaStatus -- Disable bound variable condition for names.
     , maxRecursionDepth :: Int -- max recursion depth in 
                                -- context reduction
     }
@@ -75,7 +77,9 @@ initTcEnv = TcEnv primCtx
                   []
                   []
                   True 
-                  True 
+                  Enabled 
+                  Enabled
+                  Enabled  
                   100
 
 primCtx :: Env 

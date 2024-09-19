@@ -1,0 +1,15 @@
+
+class a:D { function f(x:a); }
+class a:F(b) {}
+
+data Memory(a) = Memory(Word)
+
+instance Memory(a):F(Memory(Memory(Memory(a)))) {}
+instance (c:D,a:F(c)) => Memory(Memory(Memory(a))):D {
+    function f(x:Memory(Memory(Memory(a)))) {}
+}
+
+function g(y:b) {
+    let x : Memory(Memory(Memory(Memory(b))));
+    f(x);
+}

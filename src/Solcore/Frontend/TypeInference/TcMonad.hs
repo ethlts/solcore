@@ -5,7 +5,8 @@ import Control.Monad.Except
 import Control.Monad.State
 import Control.Monad.Writer
 
-import Data.List 
+import Data.List
+import qualified Data.List.NonEmpty as N
 import Data.Map (Map)
 import qualified Data.Map as Map
 
@@ -227,12 +228,38 @@ maybeToTcM _ (Just x) = pure x
 
 -- checking coverage pragma 
 
-askCoverage :: TcM Bool 
-askCoverage = gets enableCoverage
+pragmaEnabled :: Name -> PragmaStatus -> Bool 
+pragmaEnabled n Enabled = False 
+pragmaEnabled _ DisableAll = True 
+pragmaEnabled n (DisableFor ns) = n `elem` N.toList ns
 
-setCoverage :: Bool -> TcM ()
-setCoverage b 
-  = modify (\env -> env{ enableCoverage = b})
+askCoverage :: Name -> TcM Bool 
+askCoverage n 
+  = (pragmaEnabled n) <$> gets coverage 
+
+setCoverage :: PragmaStatus -> TcM ()
+setCoverage st
+  = modify (\ env -> env{coverage = st })
+
+-- checking Patterson condition pragma 
+
+askPattersonCondition :: Name -> TcM Bool 
+askPattersonCondition n
+  = (pragmaEnabled n) <$> gets patterson
+
+setPattersonCondition :: PragmaStatus -> TcM ()
+setPattersonCondition st
+  = modify (\env -> env {patterson = st})
+
+-- checking bound variable condition 
+
+askBoundVariableCondition :: Name -> TcM Bool 
+askBoundVariableCondition n 
+  = (pragmaEnabled n) <$> gets boundVariable 
+
+setBoundVariableCondition :: PragmaStatus -> TcM ()
+setBoundVariableCondition st 
+  = modify (\ env -> env {boundVariable = st})
 
 -- recursion depth 
 

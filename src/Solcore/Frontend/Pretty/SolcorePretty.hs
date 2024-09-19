@@ -1,6 +1,7 @@
 {-# LANGUAGE InstanceSigs #-}
 module Solcore.Frontend.Pretty.SolcorePretty(module Common.Pretty, pretty) where
 
+import qualified Data.List.NonEmpty as N 
 import Data.List
 
 import Prelude hiding ((<>))
@@ -47,6 +48,22 @@ instance Pretty a => Pretty (TopDecl a) where
   ppr (TMutualDef ts)
     = vcat (map ppr ts)
   ppr (TDataDef d) = ppr d
+  ppr (TPragmaDecl p) = ppr p 
+
+instance Pretty Pragma where 
+  ppr (Pragma _ Enabled) = empty 
+  ppr (Pragma ty st) 
+    = hsep [text "pragma", ppr ty, ppr st, semi] 
+
+instance Pretty PragmaType where 
+  ppr NoBoundVariableCondition = text "no-bounded-variable-condition"
+  ppr NoCoverageCondition = text "no-coverage-condition"
+  ppr NoPattersonCondition = text "no-patterson-condition"
+
+instance Pretty PragmaStatus where 
+  ppr (DisableFor ns) 
+    = commaSep (map ppr $ N.toList ns)
+  ppr _ = empty 
 
 instance Pretty a => Pretty (Contract a) where 
   ppr (Contract n ts ds)
