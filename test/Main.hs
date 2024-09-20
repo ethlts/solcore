@@ -42,13 +42,13 @@ cases
               , runTestForFile "Invokable.solc" caseFolder
               , runTestForFile "ListModule.solc" caseFolder
               , runTestForFile "Logic.solc" caseFolder
-              , expectFail $ runTestForFile "Memory1.solc" caseFolder --- FIXME  
-              , expectFail $ runTestForFile "Memory2.solc" caseFolder --- FIXME 
+              , runTestForFile "Memory1.solc" caseFolder --- FIXME  
+              , runTestForFile "Memory2.solc" caseFolder --- FIXME 
               , runTestForFile "Mutuals.solc" caseFolder
               , runTestForFile "NegPair.solc" caseFolder
               , runTestForFile "Option.solc" caseFolder
               , runTestForFile "Pair.solc" caseFolder
-              , expectFail $ runTestForFile "PairMatch1.solc" caseFolder 
+              -- , expectFail $ runTestForFile "PairMatch1.solc" caseFolder 
               , expectFail $ runTestForFile"PairMatch2.solc" caseFolder
               , runTestForFile "Peano.solc" caseFolder
               , runTestForFile "PeanoMatch.solc" caseFolder

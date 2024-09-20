@@ -29,16 +29,16 @@ tcStmt e@(lhs := rhs)
   = do 
       (lhs1, ps1, t1) <- tcExp lhs
       (rhs1, ps2, t2) <- tcExp rhs 
-      typeMatch t2 t1 `wrapError` e
-      pure (lhs1 := rhs1, (ps1 ++ ps2), unit)
+      typeMatch t1 t2 `wrapError` e
+      pure (lhs1 := rhs1, apply s (ps1 ++ ps2), unit)
 tcStmt e@(Let n mt me)
   = do
       (me', psf, tf) <- case (mt, me) of
                       (Just t, Just e1) -> do 
-                        (e', ps1,t1) <- tcExp e1
+                        (e', ps1, t1) <- tcExp e1
                         kindCheck t1 `wrapError` e
-                        typeMatch t1 t `wrapError` e
-                        pure (Just e', ps1, t1)
+                        typeMatch t t1 `wrapError` e
+                        pure (Just e', apply s ps1, apply s t1)
                       (Just t, Nothing) -> do 
                         return (Nothing, [], t)
                       (Nothing, Just e) -> do 
