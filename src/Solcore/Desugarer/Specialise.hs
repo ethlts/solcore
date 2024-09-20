@@ -84,6 +84,10 @@ nopanics msgs = do
     liftIO $ putStrLn $ concat msgs
     liftIO exitFailure
 
+warns :: MonadIO m => [String] -> m ()
+warns msgs = do
+    liftIO $ putStrLn $ concat msgs
+
 prettys :: Pretty a => [a] -> String
 prettys = render . brackets . commaSep . map ppr
 
@@ -193,10 +197,9 @@ specEntry name = withLocalState do
     case mres of
       Just (fd, ty, subst) -> do
         writes ["resolution: ", show name, " : ", pretty ty, "@", pretty subst]
-        specFunDef fd
-        return ()
+        void(specFunDef fd)
       Nothing -> do
-        nopanics ["Warning: no resolution found for ", show name]
+        warns ["Warning: no resolution found for ", show name]
 
 addContractResolutions :: Contract Id -> SM ()
 addContractResolutions (Contract name args decls) = do
