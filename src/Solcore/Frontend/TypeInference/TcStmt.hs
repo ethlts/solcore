@@ -35,7 +35,8 @@ tcStmt e@(Let n mt me)
   = do
       (me', psf, tf) <- case (mt, me) of
                       (Just t, Just e1) -> do 
-                        (e', ps1,t1) <- tcExp e1 
+                        (e', ps1,t1) <- tcExp e1
+                        kindCheck t1 `wrapError` e
                         typeMatch t1 t `wrapError` e
                         pure (Just e', ps1, t1)
                       (Just t, Nothing) -> do 

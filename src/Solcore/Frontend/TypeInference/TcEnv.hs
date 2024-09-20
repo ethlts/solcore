@@ -23,6 +23,12 @@ data TypeInfo
     , fieldNames :: [Name]   -- list of field names 
     } deriving (Eq, Ord, Show)
 
+wordTypeInfo :: TypeInfo 
+wordTypeInfo = TypeInfo 0 [] []
+
+unitTypeInfo :: TypeInfo 
+unitTypeInfo = TypeInfo 0 [] []
+
 -- name of constructor and its scheme
 type ConInfo = (Name, Scheme)
 
@@ -86,7 +92,9 @@ primCtx :: Env
 primCtx = Map.fromList [primAddWord, primEqWord] 
 
 primTypeEnv :: TypeTable 
-primTypeEnv = Map.empty 
+primTypeEnv = Map.fromList [ (Name "Word", wordTypeInfo)
+                           , (Name "Unit", unitTypeInfo)
+                           ]
 
 primInstEnv :: InstTable
 primInstEnv = Map.empty 
