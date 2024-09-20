@@ -1,0 +1,14 @@
+contract Option {
+  data Option(a) = None | Some(a)
+
+  function maybe(n, o) {
+    match o {
+      | Some(x) => return x;
+      | _ => return n;
+    };
+  }
+
+  function main() {
+    return maybe(7, None);
+  }
+}

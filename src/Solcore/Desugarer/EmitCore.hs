@@ -1,6 +1,7 @@
 module Solcore.Desugarer.EmitCore(emitCore) where
 import Language.Core qualified as Core
 import Data.Map qualified as Map
+-- import Common.Monad
 import Control.Monad(forM, when)
 import Control.Monad.IO.Class
 import Control.Monad.Reader.Class
@@ -310,7 +311,6 @@ type BranchMap = Map.Map Name [Core.Stmt]
 
 emitSumMatch :: [Constr] -> Exp Id -> Equations Id -> EM [Core.Stmt]
 emitSumMatch allCons scrutinee alts = do
-    let 
     (sVal, sCode) <- emitExp scrutinee
     let sType = typeOfTcExp scrutinee
     sCoreType <- translateType sType
@@ -323,7 +323,7 @@ emitSumMatch allCons scrutinee alts = do
     branches <- emitEqns alts
     let branchMap = foldr insertBranch defaultBranchMap branches
     let branches = [branchMap Map.! c | c <- allConNames]
-    debug ["emitMatch: branches ", show branches]
+    -- debug ["emitMatch: branches ", show branches]
     let matchCode = buildMatch sVal sCoreType branches
     return(sCode ++ matchCode)
     where
@@ -332,22 +332,24 @@ emitSumMatch allCons scrutinee alts = do
       insertBranch (PVar (Id n _), stmts) m = Map.fromList [(c, stmts) | c <- allConNames]
       insertBranch (PCon (Id n _) _, stmts) m = Map.insert n stmts m
       emitEqn :: Core.Expr -> Equation Id -> EM (Pat Id, [Core.Stmt])
-      emitEqn expr ([pat@(PCon con patargs)], stmts) = withLocalState do
+      emitEqn expr ([pat], stmts) = withLocalState do
+        let patargs = getPatArgs pat
         let pvars = translatePatArgs expr patargs
         extendVSubst pvars
         let comment = Core.SComment (pretty pat)
         coreStmts <- emitStmts stmts
         let coreStmts' = comment : coreStmts
-        debug ["emitEqn: ", pretty pat, " / ", show expr, " -> ", show coreStmts']
+        debug ["emitEqn: ", show pat, " / ", show expr, " -> ", show coreStmts']
         return (pat, coreStmts')
+      emitEqn _ _ = error ("emitEqn: multiple patterns should have been desugared by now")
+      getPatArgs(PCon _ patargs) = patargs
+      getPatArgs _ = []
 
       -- TODO: emitEqns should process the eqns in constructor declaration order
       -- e.g. if we have data B = F | T and then match b | T => ... | F => ...
       -- we should still process the F case first to avoid mixing up inl/inr
       emitEqns :: [Equation Id] -> EM [(Pat Id, [Core.Stmt])]
       emitEqns [eqn] = (:[]) <$> emitEqn (Core.EVar (altName True)) eqn
-      -- FIXME: hack to ignore the catch-all case for now
-      emitEqns [eqn, ([PVar _], _)] = emitEqns [eqn]
       emitEqns (eqn:eqns) = do
         b <- emitEqn (Core.EVar (altName False)) eqn
         bs <- emitEqns eqns
