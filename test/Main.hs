@@ -5,7 +5,7 @@ import Test.Tasty.Program
 import Test.Tasty.ExpectedFailure 
 
 main :: IO ()
-main = defaultMain tests 
+main = defaultMain tests  
 
 tests :: TestTree 
 tests 
@@ -76,6 +76,7 @@ basicOptions :: [String]
 basicOptions = [ "new-run"
                , "sol-core"
                , "--"
-               , "-f"] 
+               , "-f"
+               ] 
 
 
