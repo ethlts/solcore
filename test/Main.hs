@@ -36,7 +36,7 @@ cases
               , expectFail $ runTestForFile "Compose.solc" caseFolder
               , expectFail $ runTestForFile "DupFun.solc" caseFolder
               , expectFail $ runTestForFile "DuplicateFun.solc" caseFolder
-              , expectFail $ runTestForFile "EitherModule.solc" caseFolder -- XXX remove warning (check with Marcin)
+              , runTestForFile "EitherModule.solc" caseFolder
               , runTestForFile "Enum.solc" caseFolder
               , runTestForFile "Eq.solc" caseFolder
               , expectFail $ runTestForFile "EvenOdd.solc" caseFolder --- FIXME
@@ -44,26 +44,26 @@ cases
               , runTestForFile "Foo.solc" caseFolder
               , expectFail $ runTestForFile "GetSet.solc" caseFolder --- FIXME
               , runTestForFile "GoodInstance.solc" caseFolder
-              , expectFail $ runTestForFile "Id.solc" caseFolder --- FIXME remove warning (check with Marcin)
+              , runTestForFile "Id.solc" caseFolder
               , runTestForFile "IncompleteInstDef.solc" caseFolder 
               , runTestForFile "Invokable.solc" caseFolder
-              , expectFail $ runTestForFile "ListModule.solc" caseFolder --- FIXME remove warning (check with Marcin)
-              , expectFail $ runTestForFile "Logic.solc" caseFolder --- FIXME remove warning (check with Marcin)
+              , runTestForFile "ListModule.solc" caseFolder
+              , runTestForFile "Logic.solc" caseFolder
               , expectFail $ runTestForFile "Memory1.solc" caseFolder --- FIXME  
               , expectFail $ runTestForFile "Memory2.solc" caseFolder --- FIXME 
               , runTestForFile "Mutuals.solc" caseFolder
               , runTestForFile "NegPair.solc" caseFolder
-              , expectFail $ runTestForFile "Option.solc" caseFolder --- FIXME remove warning (check with Marcin)
-              , expectFail $ runTestForFile "Pair.solc" caseFolder -- FIXME remove warning
+              , runTestForFile "Option.solc" caseFolder
+              , runTestForFile "Pair.solc" caseFolder
               , expectFail $ runTestForFile "PairMatch1.solc" caseFolder 
               , expectFail $ runTestForFile"PairMatch2.solc" caseFolder
-              , expectFail $ runTestForFile "Peano.solc" caseFolder -- FIXME remove warning (check with Marcin)
+              , runTestForFile "Peano.solc" caseFolder
               , runTestForFile "PeanoMatch.solc" caseFolder
               , runTestForFile "RefDeref.solc" caseFolder
               , expectFail $ runTestForFile "SillyReturn.solc" caseFolder
-              , expectFail $ runTestForFile "SimpleField.solc" caseFolder -- FIXME remove warning (check with Marcin)
+              , runTestForFile "SimpleField.solc" caseFolder
               , expectFail $ runTestForFile "SimpleInvoke.solc" caseFolder -- FIXME
-              , expectFail $ runTestForFile "SimpleLambda.solc" caseFolder -- FIXME remove warning (check with Marcin)
+              , runTestForFile "SimpleLambda.solc" caseFolder
               , runTestForFile "SingleFun.solc" caseFolder
               , runTestForFile "assembly.solc" caseFolder
               ]
