@@ -5,7 +5,7 @@ import Control.Monad.Except
 import Control.Monad.Trans
 import Control.Monad.State
 
-import Data.Generics
+import Data.Generics hiding (Constr)
 import Data.List
 import qualified Data.Map as Map
 import Data.Maybe
@@ -55,6 +55,8 @@ tcCompUnit (CompUnit imps cs)
         d' <- tcTopDecl d 
         s <- getSubst 
         pure (everywhere (mkT (applyI s)) d')
+
+-- setting up pragmas for type checking
 
 setupPragmas :: [Pragma] -> TcM ()
 setupPragmas ps 
@@ -205,19 +207,31 @@ tcDecl (CMutualDecl ds)
       ds' <- tcBindGroup (map f ds) 
       pure (CMutualDecl (map CFunDecl ds'))
 tcDecl (CConstrDecl cd) = CConstrDecl <$> tcConstructor cd 
-tcDecl (CDataDecl d) = pure (CDataDecl d)
+tcDecl (CDataDecl d) = CDataDecl <$> tcDataDecl d 
+
+-- kind check data declarations 
+
+tcDataDecl :: DataTy -> TcM DataTy 
+tcDataDecl (DataTy n vs cs) 
+  = DataTy n vs <$> mapM tcConstr cs 
+
+tcConstr :: Constr -> TcM Constr 
+tcConstr (Constr n ts) 
+  = Constr n <$> mapM kindCheck ts 
 
 -- type checking fields
 
 tcField :: Field Name -> TcM (Field Id)
 tcField d@(Field n t (Just e)) 
   = do
-      (e', ps', t') <- tcExp e 
+      (e', ps', t') <- tcExp e
+      kindCheck t `wrapError` d 
       s <- mgu t t' `wrapError` d 
       extEnv n (monotype t)
       return (Field n t (Just e')) 
-tcField (Field n t _) 
-  = do 
+tcField d@(Field n t _) 
+  = do
+      kindCheck t `wrapError` d
       extEnv n (monotype t)
       pure (Field n t Nothing)
 
@@ -272,7 +286,7 @@ tcClass iclass@(Class ctx n vs v sigs)
   = do
       let ns = map sigName sigs
       schs <- mapM askEnv ns 
-      sigs' <- mapM tcSig (zip sigs schs)
+      sigs' <- mapM tcSig (zip sigs schs) `wrapError` iclass
       pure (Class ctx n vs v sigs')
 
 tcSig :: (Signature Name, Scheme) -> TcM (Signature Id)
@@ -282,6 +296,7 @@ tcSig (sig, (Forall _ (_ :=> t)))
           param (Typed n t) t1 = Typed (Id n t1) t1 
           param (Untyped n) t1 = Typed (Id n t1) t1
           params' = zipWith param (sigParams sig) ts
+      kindCheck t `wrapError` sig 
       pure (Signature (sigVars sig)
                       (sigContext sig)
                       (sigName sig)
@@ -332,7 +347,7 @@ tcFunDef :: FunDef Name -> TcM (FunDef Id, [Pred], Ty)
 tcFunDef d@(FunDef sig bd) 
   = withLocalEnv do
       -- checking if the function isn't defined 
-      (params', schs, ts) <- tcArgs (sigParams sig)
+      (params', schs, ts) <- tcArgs (sigParams sig) `wrapError` d
       (bd', ps1, t') <- withLocalCtx schs (tcBody bd)
       sch <- askEnv (sigName sig)
       (ps :=> t) <- freshInst sch

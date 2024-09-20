@@ -26,7 +26,7 @@ combine gs ds
     ns = map name' ds 
     name' (TContr c) = name c 
     name' (TClassDef c) = className c 
-    name' (TInstDef is) = instName is 
+    name' (TInstDef is) = Name $ pretty (instName is) ++ pretty (mainTy is) 
     name' (TDataDef d) = dataName d 
     name' (TFunDef f) = sigName $ funSignature f 
     name' (TSym t) = symName t 

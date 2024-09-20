@@ -198,7 +198,29 @@ tcArg (Untyped n)
       let ty = monotype v
       pure (Typed (Id n v) v, (n, ty), v)
 tcArg (Typed n ty)
-  = pure (Typed (Id n ty) ty, (n, monotype ty), ty)
+  = do 
+      ty' <- kindCheck ty 
+      pure (Typed (Id n ty') ty', (n, monotype ty'), ty')
+
+-- kind check 
+
+kindCheck :: Ty -> TcM Ty 
+kindCheck (t1 :-> t2) 
+  = (:->) <$> kindCheck t1 <*> kindCheck t2 
+kindCheck t@(TyCon n ts) 
+  = do 
+      ti <- askTypeInfo n 
+      unless (arity ti == length ts) $ 
+        throwError $ unlines [ "Invalid number of type arguments!" 
+                             , "Type " ++ pretty n ++ " is expected to have " ++
+                               show (arity ti) ++ " type arguments"
+                             , "but, type " ++ pretty t ++ 
+                               " has " ++ (show $ length ts) ++ " arguments"]
+      mapM_ kindCheck ts 
+      pure t
+kindCheck t = pure t 
+
+
 
 tcBody :: Body Name -> TcM (Body Id, [Pred], Ty)
 tcBody [] = pure ([], [], unit)

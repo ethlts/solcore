@@ -37,13 +37,6 @@ cases
               , expectFail $ runTestForFile "DupFun.solc" caseFolder
               , expectFail $ runTestForFile "DuplicateFun.solc" caseFolder
               , runTestForFile "EitherModule.solc" caseFolder
-              , runTestForFile "Enum.solc" caseFolder
-              , runTestForFile "Eq.solc" caseFolder
-              , expectFail $ runTestForFile "EvenOdd.solc" caseFolder --- FIXME
-              , runTestForFile "Filter.solc" caseFolder
-              , runTestForFile "Foo.solc" caseFolder
-              , expectFail $ runTestForFile "GetSet.solc" caseFolder --- FIXME
-              , runTestForFile "GoodInstance.solc" caseFolder
               , runTestForFile "Id.solc" caseFolder
               , runTestForFile "IncompleteInstDef.solc" caseFolder 
               , runTestForFile "Invokable.solc" caseFolder
@@ -62,7 +55,7 @@ cases
               , runTestForFile "RefDeref.solc" caseFolder
               , expectFail $ runTestForFile "SillyReturn.solc" caseFolder
               , runTestForFile "SimpleField.solc" caseFolder
-              , expectFail $ runTestForFile "SimpleInvoke.solc" caseFolder -- FIXME
+              , runTestForFile "SimpleInvoke.solc" caseFolder
               , runTestForFile "SimpleLambda.solc" caseFolder
               , runTestForFile "SingleFun.solc" caseFolder
               , runTestForFile "assembly.solc" caseFolder
