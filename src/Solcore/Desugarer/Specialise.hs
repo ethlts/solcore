@@ -4,6 +4,7 @@ Create specialised versions of polymorphic and overloaded (TODO) functions.
 This is meant to be run on typed and defunctionalised code, so no higher-order functions.
 -}
 
+import Common.Monad
 import Control.Monad
 import Control.Monad.Reader
 import Control.Monad.State
@@ -65,28 +66,6 @@ debug msg = do
 
 runSM :: Bool -> TcEnv -> SM a -> IO a
 runSM debugp env m = evalStateT m (initSpecState debugp env)
-
-writeln :: String -> SM ()
-writeln = whenDebug . liftIO  . putStrLn
-writes :: [String] -> SM ()
-writes = writeln . concat
-
-errors :: HasCallStack => [String] -> SM a
-errors = error . concat
-
-panics :: MonadIO m => [String] -> m a
-panics msgs = do
-    liftIO $ putStrLn $ concat ("PANIC: ":msgs)
-    liftIO exitFailure
-
-nopanics :: MonadIO m => [String] -> m a
-nopanics msgs = do
-    liftIO $ putStrLn $ concat msgs
-    liftIO exitFailure
-
-warns :: MonadIO m => [String] -> m ()
-warns msgs = do
-    liftIO $ putStrLn $ concat msgs
 
 prettys :: Pretty a => [a] -> String
 prettys = render . brackets . commaSep . map ppr

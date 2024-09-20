@@ -8,15 +8,12 @@ module Common.RIO(
     module Control.Monad.Reader,
     module Data.IORef
 ) where
+import Common.Monad
 import Control.Monad.Reader
 import Data.IORef
 
 type RIO env a = ReaderT env IO a
 -- instance MonadIO RIO
-
--- writeln :: MonadIO m => String -> m ()
-writeln :: String -> RIO env ()
-writeln = liftIO . putStrLn
 
 -- load :: MonadIO m => IORef a -> m a
 load :: IORef a -> RIO env a

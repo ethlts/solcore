@@ -1,7 +1,7 @@
 module Solcore.Desugarer.EmitCore(emitCore) where
 import Language.Core qualified as Core
 import Data.Map qualified as Map
--- import Common.Monad
+import Common.Monad
 import Control.Monad(forM, when)
 import Control.Monad.IO.Class
 import Control.Monad.Reader.Class
@@ -153,6 +153,7 @@ translateTCon tycon tas = do
             Core.TNamed (show tycon) . buildSumType <$> mapM (translateDCon subst) cs
         Nothing -> errors ["translateTCon: unknown type ", pretty tycon, "\n", show tycon]
   where
+      buildSumType :: [Core.Type] -> Core.Type
       buildSumType [] = errors ["empty sum ", pretty tycon] -- Core.TUnit
       buildSumType ts = foldr1 Core.TSum ts
 
@@ -416,13 +417,6 @@ translatePatArgs s = Map.fromList . go s where
 -----------------------------------------------------------------------
 -- Utility functions
 -----------------------------------------------------------------------
-
-writeln :: MonadIO m => String -> m ()
-writeln = liftIO . putStrLn
-writes :: MonadIO m => [String] -> m ()
-writes = writeln . concat
-errors :: HasCallStack => [String] -> a
-errors = error . concat
 
 debug :: [String] -> EM ()
 debug msg = do

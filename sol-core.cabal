@@ -78,6 +78,7 @@ library
       Language.Yul
       Language.Yul.Parser
       Common.LightYear
+      Common.Monad
       Common.Pretty
       Common.RIO
   hs-source-dirs:
