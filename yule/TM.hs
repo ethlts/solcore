@@ -15,10 +15,9 @@ module TM
 , getVarEnv
 , putVarEnv
 , withLocalEnv
-, writeln
-, writes
 , debug
 ) where
+import Common.Monad
 import Common.RIO
 import Control.Monad(when)
 import qualified Data.Map as Map
@@ -60,11 +59,6 @@ getDebug = reader (Options.debug . env_options)
 whenDebug m = do
     debugp <- getDebug
     when debugp m
-
--- writes :: MonadIO m => [String] -> m ()
-writes = writeln . concat
-errors :: [String] -> a
-errors = error . concat
 
 debug :: [String] -> TM ()
 debug msg = whenDebug $ writes msg
