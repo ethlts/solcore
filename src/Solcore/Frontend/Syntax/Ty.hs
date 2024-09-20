@@ -7,7 +7,7 @@ import Solcore.Frontend.Syntax.Name
 -- basic typing infrastructure 
 
 data Tyvar 
-  = TVar Name 
+  = TVar Name
   deriving (Eq, Ord, Show, Data, Typeable)
    
 tyVarName :: Tyvar -> Name 
@@ -43,14 +43,6 @@ splitTy t = ([], t)
 
 funtype :: [Ty] -> Ty -> Ty
 funtype ts t = foldr (:->) t ts
-
-alphaEq :: Ty -> Ty -> Bool 
-alphaEq (TyVar _) (TyVar _) 
-  = True 
-alphaEq (TyCon n ts) (TyCon n' ts')
-  = n == n' && (and (zipWith alphaEq ts ts'))
-alphaEq _ _ 
-  = False
 
 -- definition of constraints 
 
