@@ -1,0 +1,30 @@
+name: "Build"
+on:
+  pull_request:
+  push:
+    branches:
+      main
+
+jobs:
+  nix-build:
+    strategy:
+      matrix:
+        runtime: [ linux-x64, osx-x64, osx-arm64 ]
+        include:
+        - runtime: linux-x64
+          os: ubuntu-latest
+
+        - runtime: osx-x64
+          os: macos-13
+
+        - runtime: osx-arm64
+          os: macos-14
+
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: build hevm
+        run: nix build .
