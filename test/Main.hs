@@ -35,6 +35,13 @@ spec
               , runTestForFile "041pair.solc" specFolder
               , runTestForFile "042triple.solc" specFolder
               , expectFail $ runTestForFile "06comp.solc" specFolder
+              , runTestForFile "07rgb.solc" specFolder
+              , runTestForFile "08rgb2.solc" specFolder 
+              , runTestForFile "09not.solc" specFolder 
+              , runTestForFile "10negBool.solc" specFolder
+              , runTestForFile "11negPair.solc" specFolder
+              , expectFail $ runTestForFile "903badassign.solc" specFolder
+              , runTestForFile "939badfood.solc" specFolder
               ]
     where 
       specFolder = "./test/examples/spec"
@@ -46,7 +53,7 @@ pragmas
                 expectFail $ runTestForFile "bound.solc" pragmaFolder
               , runTestForFile "coverage.solc" pragmaFolder
               , runTestForFile "patterson.solc" pragmaFolder
-              ]
+              ] 
     where 
       pragmaFolder = "./test/examples/pragmas"
  
