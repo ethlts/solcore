@@ -13,7 +13,31 @@ tests
                [
                  cases
                , pragmas
+               , spec 
                ]
+
+spec :: TestTree 
+spec 
+  = testGroup "Files for spec cases"
+              [
+                runTestForFile "00answer.solc" specFolder
+              , runTestForFile "01id.solc" specFolder
+              , expectFail $ runTestForFile "02.nid.solc" specFolder
+              , runTestForFile "031maybe.solc" specFolder
+              , runTestForFile "032simplejoin.solc" specFolder
+              , runTestForFile "033join.solc" specFolder
+              , expectFail $ runTestForFile "034cojoin.solc" specFolder
+              , runTestForFile "035padding.solc" specFolder
+              , runTestForFile "036wildcard.solc" specFolder
+              , runTestForFile "037dwarves.solc" specFolder
+              , runTestForFile "038food0.solc" specFolder
+              , runTestForFile "039food.solc" specFolder
+              , runTestForFile "041pair.solc" specFolder
+              , runTestForFile "042triple.solc" specFolder
+              , expectFail $ runTestForFile "06comp.solc" specFolder
+              ]
+    where 
+      specFolder = "./test/examples/spec"
 
 pragmas :: TestTree 
 pragmas 
@@ -25,7 +49,7 @@ pragmas
               ]
     where 
       pragmaFolder = "./test/examples/pragmas"
-
+ 
 cases :: TestTree 
 cases 
   = testGroup "Files for folder cases"

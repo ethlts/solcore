@@ -2,5 +2,6 @@ data Memory(a) = Memory(Word)
 
 function g() {
     let x : Memory(Memory(Word));
+    let y : Memory(Word) = Memory(1);
     x = Memory(0);
 }

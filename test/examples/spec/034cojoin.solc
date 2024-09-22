@@ -33,6 +33,6 @@ contract Option {
 
 
   function main() {
-    return maybe(0, join(cojoin(Some[42])));
+    return maybe(0, join(cojoin(Some(42))));
   }
 }
