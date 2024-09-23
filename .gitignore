@@ -25,3 +25,4 @@ cabal.project.local~
 *.info
 Tasks.md
 *~
+output.core
