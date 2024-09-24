@@ -79,7 +79,7 @@ cases
               , runTestForFile "NegPair.solc" caseFolder
               , runTestForFile "Option.solc" caseFolder
               , runTestForFile "Pair.solc" caseFolder
-              , runTestForFile "PairMatch1.solc" caseFolder -- FIXME this should fail.
+              , expectFail $ runTestForFile "PairMatch1.solc" caseFolder
               , expectFail $ runTestForFile"PairMatch2.solc" caseFolder
               , runTestForFile "Peano.solc" caseFolder
               , runTestForFile "PeanoMatch.solc" caseFolder

@@ -29,7 +29,7 @@ runTcM m env = runExceptT (runStateT (runWriterT m) env)
 
 freshVar :: TcM Tyvar 
 freshVar 
-  = TVar <$> freshName 
+  = TVar <$> freshName
 
 freshName :: TcM Name 
 freshName 
@@ -225,6 +225,97 @@ addInstance n inst
 maybeToTcM :: String -> Maybe a -> TcM a 
 maybeToTcM s Nothing = throwError s 
 maybeToTcM _ (Just x) = pure x
+
+-- type generalization 
+
+generalize :: ([Pred], Ty) -> TcM Scheme 
+generalize (ps,t) 
+  = do 
+      envVars <- getEnvFreeVars
+      (ps1,t1) <- withCurrentSubst (ps,t)
+      ps2 <- reduceContext ps1 
+      t2 <- withCurrentSubst t1 
+      let vs = fv (ps2,t2)
+          sch = Forall (vs \\ envVars) (ps2 :=> t2)
+      return sch
+
+-- context reduction 
+
+reduceContext :: [Pred] -> TcM [Pred]
+reduceContext preds 
+  = do 
+      depth <- askMaxRecursionDepth 
+      unless (null preds) $ info ["> reduce context ", pretty preds]
+      ps1 <- toHnfs depth preds `wrapError` preds
+      ps2 <- withCurrentSubst ps1 
+      unless (null preds) $ info ["> reduced context ", pretty (nub ps2)]
+      pure (nub ps2)
+
+toHnfs :: Int -> [Pred] -> TcM [Pred]
+toHnfs depth ps 
+  = do 
+      s <- getSubst 
+      ps' <- simplifyEqualities ps 
+      ps2 <- withCurrentSubst ps'
+      toHnfs' depth ps2 
+
+simplifyEqualities :: [Pred] -> TcM [Pred]
+simplifyEqualities ps = go [] ps where
+    go rs [] = return rs
+    go rs ((t :~: u) : ps) = do
+      phi <- mgu t u
+      extSubst phi
+      ps' <- withCurrentSubst ps
+      rs' <- withCurrentSubst rs
+      go rs' ps'
+    go rs (p:ps) = go (p:rs) ps
+
+toHnfs' :: Int -> [Pred] -> TcM [Pred]
+toHnfs' _ [] = return []
+toHnfs' 0 ps = throwError("Max context reduction depth exceeded")
+toHnfs' d preds@(p:ps) = do
+  let d' = d - 1
+  rs1 <- toHnf d' p
+  ps' <- withCurrentSubst ps   -- important, toHnf may have extended the subst
+  rs2 <- toHnfs' d' ps'
+  return (rs1 ++ rs2)
+
+toHnf :: Int -> Pred -> TcM [Pred]
+toHnf _ (t :~: u) = do
+  subst1 <- mgu t u
+  extSubst subst1
+  return []
+toHnf depth pred@(InCls n _ _)
+  | inHnf pred = return [pred]
+  | otherwise = do
+      ce <- getInstEnv
+      is <- askInstEnv n
+      case byInstM ce pred of
+        Nothing -> throwError ("no instance of " ++ pretty pred
+                  ++"\nKnown instances:\n"++ (unlines $ map pretty is))
+        Just (preds, subst') -> do
+            extSubst subst'
+            toHnfs (depth - 1) preds
+
+inHnf :: Pred -> Bool
+inHnf (InCls c t args) = hnf t where
+  hnf (TyVar _) = True
+  hnf (TyCon _ _) = False
+inHnf (_ :~: _) = False
+
+byInstM :: InstTable -> Pred -> Maybe ([Pred], Subst)
+byInstM ce p@(InCls i t as) 
+  = msum [tryInst it | it <- insts ce i] 
+    where
+      insts m n = maybe [] id (Map.lookup n m)
+      tryInst :: Qual Pred -> Maybe ([Pred], Subst)
+      tryInst c@(ps :=> h) =
+          case matchPred h p of
+            Left _ -> Nothing
+            Right u -> let tvs = fv h
+                       in  Just (map (apply u) ps, restrict u tvs)
+
+
 
 -- checking coverage pragma 
 
