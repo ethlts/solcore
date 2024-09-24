@@ -164,11 +164,11 @@ checkDecl (CMutualDecl ds)
 checkDecl _ = return ()
 
 extSignature :: Signature Name -> TcM ()
-extSignature (Signature _ preds n ps t)
+extSignature sig@(Signature _ preds n ps t)
   = do
       -- checking if the function is previously defined
       te <- gets ctx
-      when (Map.member n te) (duplicatedFunDef n)
+      when (Map.member n te) (duplicatedFunDef n) `wrapError` sig
       argTys <- mapM tyParam ps
       t' <- maybe freshTyVar pure t
       let 
@@ -352,6 +352,7 @@ tcFunDef d@(FunDef sig bd)
       sch <- askEnv (sigName sig)
       (ps :=> t) <- freshInst sch
       let t1 = foldr (:->) t' ts
+      sch' <- generalize (ps1, t1) 
       s <- match t t1 `wrapError` d
       rTy <- withCurrentSubst t'
       let sig' = Signature (sigVars sig) 
