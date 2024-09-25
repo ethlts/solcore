@@ -131,3 +131,5 @@ test-suite sol-core-tests
     , tasty
     , tasty-program
     , tasty-expected-failure
+
+  build-tool-depends: sol-core:sol-core, sol-core:yule
