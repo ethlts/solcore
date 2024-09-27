@@ -286,11 +286,8 @@ General approach to match statement translation:
 
 -}
 
--- | translateSingleEquation handles the special case for product types
--- there is only one match branch, just transform to projections
--- takes a translated scrutinee and a single equation
 
--- !!! FIXME works for 03maybe but fails for 03option
+
 emitMatch :: Exp Id -> Equations Id -> EM [Core.Stmt]
 emitMatch scrutinee alts = do
     let sty =  typeOfTcExp scrutinee
@@ -396,6 +393,10 @@ emitProdMatch scrutinee (eqn:_) = do
     mcode <- translateSingleEquation sexpr eqn
     return (scode ++ mcode)
 
+
+-- | translateSingleEquation handles the special case for product types
+-- there is only one match branch, just transform to projections
+-- takes a translated scrutinee and a single equation
 translateSingleEquation :: Core.Expr -> Equation Id -> EM [Core.Stmt]
 translateSingleEquation expr ([PCon con patargs], stmts) = withLocalState do
     let pvars = translatePatArgs expr patargs

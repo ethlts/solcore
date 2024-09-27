@@ -302,7 +302,7 @@ ensureSimple ty' stmt subst = case ty' of
 ensureClosed :: Pretty a => Ty -> a -> Subst ->  SM ()
 ensureClosed ty ctxt subst = do
   let tvs = fv ty
-  unless (null tvs) $ panics ["spec(", pretty ctxt,"): free type vars in ", show ty, ": ", show tvs
+  unless (null tvs) $ panics ["spec(", pretty ctxt,"): free type vars in ", pretty ty, ": ", show tvs
                              , " @ subst=", pretty subst]
 
 specStmt :: Stmt Id -> SM(Stmt Id)

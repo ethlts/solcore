@@ -129,7 +129,7 @@ coreStmt = choice
 coreArg :: Parser Arg
 coreArg = TArg <$> identifier <*> (symbol ":" *> coreType)
 
-coreAlt :: Parser Alt  -- FIXME: distinguish inl/inr
+coreAlt :: Parser Alt
 coreAlt = choice
     [ Alt CInl <$> (pKeyword "inl" *> identifier <* symbol "=>") <*> coreStmt
     , Alt CInr <$> (pKeyword "inr" *> identifier <* symbol "=>") <*> coreStmt
