@@ -48,7 +48,7 @@ instance FooToken:Invokable(Word, Word) {
 // lambda in add1mod captures a function
 // so env contains the closure
 
-function lam1impl (env : f, a:Word) {
+forall f.(f: Invokable(Word,Word)) =>  function lam1impl (env : f, a:Word) {
   let f = env;
   return add1(invoke(f, a));
 }
