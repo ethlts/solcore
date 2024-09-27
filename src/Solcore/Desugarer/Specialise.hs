@@ -175,7 +175,7 @@ specEntry name = withLocalState do
     mres <- lookupResolution name anytype
     case mres of
       Just (fd, ty, subst) -> do
-        writes ["resolution: ", show name, " : ", pretty ty, "@", pretty subst]
+        debug ["resolution: ", show name, " : ", pretty ty, "@", pretty subst]
         void(specFunDef fd)
       Nothing -> do
         warns ["Warning: no resolution found for ", show name]
@@ -194,7 +194,7 @@ addFunDefResolution fd = do
   let name = sigName sig
   let funType = typeOfTcFunDef fd
   addResolution name funType fd
-  writes ["! addDeclResolution: ", show name, " : ", pretty funType]
+  debug ["! addDeclResolution: ", show name, " : ", pretty funType]
 
 addMethodResolution :: Ty -> TcFunDef -> SM ()
 addMethodResolution ty fd = do
@@ -204,15 +204,15 @@ addMethodResolution ty fd = do
   let funType = typeOfTcFunDef fd
   let fd' = FunDef sig{sigName = name'} (funDefBody fd)
   addResolution name funType fd'
-  writes ["! addMethodResolution: ", show name', " : ", pretty funType]
+  debug ["! addMethodResolution: ", show name', " : ", pretty funType]
 
 -- | `specExp` specialises an expression to given type
 specExp :: TcExp -> Ty -> SM TcExp
 specExp e@(Call Nothing i args) ty = do
-  -- writes ["> specExp (Call): ", pretty e, " : ", pretty (idType i), " ~> ", pretty ty]
+  -- debug ["> specExp (Call): ", pretty e, " : ", pretty (idType i), " ~> ", pretty ty]
   (i', args') <- specCall i args ty
   let e' = Call Nothing i' args'
-  -- writes ["< specExp (Call): ", pretty e']
+  -- debug ["< specExp (Call): ", pretty e']
   return e'
 specExp e@(Var (Id n t)) ty = pure (Var (Id n ty))
 specExp e ty = atCurrentSubst e -- FIXME
@@ -235,7 +235,7 @@ specCall i args ty = do
   mres <- lookupResolution name funType
   case mres of
     Just (fd, ty, phi) -> do
-      writes ["< resolution: ", show name, " : ", pretty ty, "@", pretty phi]
+      debug ["< resolution: ", show name, " : ", pretty ty, "@", pretty phi]
       extSpSubst phi
       -- ty' <- atCurrentSubst ty
       subst <- getSpSubst
@@ -311,9 +311,9 @@ specStmt stmt@(Return e) = do
   let ty = typeOfTcExp e
   let ty' = apply subst ty
   ensureClosed ty' stmt subst
-  -- writes ["> specExp (Return): ", pretty e," : ", pretty ty, " ~> ", pretty ty']
+  -- debug ["> specExp (Return): ", pretty e," : ", pretty ty, " ~> ", pretty ty']
   e' <- specExp e ty'
-  -- writes ["< specExp (Return): ", pretty e']
+  -- debug ["< specExp (Return): ", pretty e']
   return $ Return e'
 
 specStmt (Match exps alts) = specMatch exps alts
