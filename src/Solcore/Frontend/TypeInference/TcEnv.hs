@@ -92,8 +92,8 @@ primCtx :: Env
 primCtx = Map.fromList [primAddWord, primEqWord] 
 
 primTypeEnv :: TypeTable 
-primTypeEnv = Map.fromList [ (Name "Word", wordTypeInfo)
-                           , (Name "Unit", unitTypeInfo)
+primTypeEnv = Map.fromList [ (Name "word", wordTypeInfo)
+                           , (Name "unit", unitTypeInfo)
                            ]
 
 primInstEnv :: InstTable

@@ -211,7 +211,8 @@ instance Elab S.Ty where
             pure $ TyVar (TVar n)
           else throwError $ 
               unlines ["Undefined type:"
-                      , pretty n 
+                      , pretty n
+                      , "!!"
                       ]
 
 instance Elab S.Pred where 

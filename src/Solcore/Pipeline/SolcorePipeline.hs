@@ -24,15 +24,6 @@ import System.Exit
 
 -- main compiler driver function
 
-runParser :: String -> IO (Either String (CompUnit Name))
-runParser content = do 
-  let r1 = runAlex content parser 
-  case r1 of 
-    Left err -> do 
-      putStrLn err 
-      exitWith (ExitFailure 1)
-    Right t -> buildAST t
-
 pipeline :: IO ()
 pipeline = do
   opts <- argumentsParser
@@ -70,6 +61,14 @@ pipeline = do
               when (optDumpCore opts) do
                 putStrLn "Core contract(s):"
                 forM_ r8 (putStrLn . pretty)
+
+runParser :: String -> IO (Either String (CompUnit Name))
+runParser content = do 
+  let r1 = runAlex content parser 
+  case r1 of 
+    Left err -> pure $ Left err 
+    Right t -> buildAST t
+
 
 
 withErr :: Either String a -> (a -> IO ()) -> IO ()
