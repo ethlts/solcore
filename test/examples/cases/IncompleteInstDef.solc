@@ -3,9 +3,9 @@ class a : Foo(b) {
   function faa (y : a) -> a ;
 }
 
-data Bool = False | True 
+data Bool = False | True; 
 
-data Maybe(a) = Nothing | Just(a)
+data Maybe(a) = Nothing | Just(a);
 
 instance Bool : Foo(Bool) {
   function faa(y) {

@@ -3,8 +3,8 @@ class  a : Neg {
    function neg(x:a) -> a;
 }
 
-data B = F | T
-data Pair(a,b) = Pair(a,b)
+data B = F | T;
+data Pair(a,b) = Pair(a,b);
 
 instance B : Neg {
   function neg (x : B) { 

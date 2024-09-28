@@ -18,11 +18,9 @@ $hexdig = [0-9A-Fa-f]
 
 -- second RE macros
 
-@identifier = $lower[$alpha $special $digit]* -- identifiers
-@tycon      = $upper[$alpha $special $digit]* -- type constructor
+@identifier = $alpha[$alpha $special $digit]* -- identifiers
 @number     = $digit+
 @hexlit     = 0x$hexdig+
-
 
 -- tokens declarations
 
@@ -82,7 +80,6 @@ tokens :-
         <0>    "["                               {simpleToken TLBrack}
         <0>    "]"                               {simpleToken TRBrack}
         <0>    "|"                               {simpleToken TBar}
-        <0>    @tycon                            {mkCon}
         <0>    @identifier                       {mkIdent}
         <0>    @number                           {mkNumber}
         <0>    @hexlit                           {mkHexlit}
@@ -145,7 +142,6 @@ data Token
 
 data Lexeme    
   = TIdent { unIdent :: String }
-  | TTycon { unCon :: String }
   | TNumber { unNum :: Integer }
   | TString { unStr :: String }
   | TContract 
@@ -223,10 +219,6 @@ mkIdent (st, _, _, str) len
       "no-bounded-variable-condition" -> 
         return $ Token (position st) TNoBoundVariableCondition
       _ -> return $ Token (position st) (TIdent $ take len str)
-
-mkCon :: AlexAction Token 
-mkCon (st, _, _, str) len 
-  = pure $ Token (position st) (TTycon (take len str))
 
 mkNumber :: AlexAction Token
 mkNumber (st, _, _, str) len 

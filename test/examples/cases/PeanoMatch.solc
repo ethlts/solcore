@@ -1,4 +1,4 @@
-data Nat = Zero | Succ(Nat)
+data Nat = Zero | Succ(Nat);
 
 function foo(n) {
   match n {

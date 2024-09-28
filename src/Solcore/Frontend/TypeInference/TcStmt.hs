@@ -161,7 +161,9 @@ tcExp e@(Con n es)
       checkConstr tn n
       let ps' = concat (ps : pss)
       pure (Con (Id n t) es', apply s ps', apply s t')
-tcExp (FieldAccess e n) 
+tcExp (FieldAccess Nothing n) 
+  = throwError "Not Implemented yet!"
+tcExp (FieldAccess (Just e) n) 
   = do
       -- infering expression type 
       (e', ps,t) <- tcExp e
@@ -170,7 +172,7 @@ tcExp (FieldAccess e n)
       -- getting field type 
       s <- askField tn n 
       (ps' :=> t') <- freshInst s 
-      pure (FieldAccess e' (Id n t'), ps ++ ps', t')
+      pure (FieldAccess (Just e') (Id n t'), ps ++ ps', t')
 tcExp (Call me n args)
   = tcCall me n args 
 tcExp e@(Lam args bd _)

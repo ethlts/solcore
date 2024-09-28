@@ -20,14 +20,14 @@ retVar = TVar (Name "ret")
 
 invokeClass :: Class Name 
 invokeClass 
-  = Class [] (Name "Invokable") 
+  = Class [] (Name "invokable") 
              [argsVar, retVar] 
              selfVar 
              [invokeSignature]
 
 invokePred :: Pred 
 invokePred 
-  = InCls (Name "Invokable")
+  = InCls (Name "invokable")
           (TyVar selfVar)
           (TyVar <$> [argsVar, retVar])
 
@@ -45,7 +45,7 @@ invokeSignature
 -- basic types 
 
 word :: Ty 
-word = TyCon "Word" []
+word = TyCon "word" []
 
 primAddWord :: (Name, Scheme)
 primAddWord = ("primAddWord", monotype (word :-> word :-> word))
@@ -54,13 +54,13 @@ primEqWord :: (Name, Scheme)
 primEqWord = ("primEqWord", monotype (word :-> word :-> word))
 
 string :: Ty 
-string = TyCon "String" []
+string = TyCon "string" []
 
 stack :: Ty -> Ty 
-stack t = TyCon "Stack" [t]
+stack t = TyCon "stack" [t]
 
 unit :: Ty 
-unit = TyCon "Unit" []
+unit = TyCon "unit" []
 
 arr :: Name  
 arr = "->"

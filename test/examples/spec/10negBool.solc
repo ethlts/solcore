@@ -3,7 +3,7 @@ class  a : Neg {
    function neg(x:a) -> a;
 }
 
-data B = F | T
+data B = F | T;
 
 
 instance B : Neg {

@@ -1,5 +1,5 @@
 contract Pair {
-data Pair(a,b) = Pair(a,b)
+data Pair(a,b) = Pair(a,b);
 
   function fst(p) {
     match p {

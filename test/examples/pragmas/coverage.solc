@@ -1,7 +1,7 @@
 pragma no-coverage-condition ; 
 
-data List(a) = Nil | Cons(a,List(a))
-data Bool = True | False 
+data List(a) = Nil | Cons(a,List(a));
+data Bool = True | False ;
 
 class a : C(b,c) {}
 

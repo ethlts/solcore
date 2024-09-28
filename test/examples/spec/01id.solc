@@ -1,6 +1,6 @@
 contract Id1 {
 
-  data Bool = False | True
+  data Bool = False | True;
 
   function id(x) {
     return x ;

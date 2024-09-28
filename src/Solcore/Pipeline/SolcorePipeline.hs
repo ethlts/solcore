@@ -11,6 +11,9 @@ import Solcore.Desugarer.MatchCompiler
 import Solcore.Frontend.Lexer.SolcoreLexer
 import Solcore.Frontend.Parser.SolcoreParser
 import Solcore.Frontend.Pretty.SolcorePretty
+import Solcore.Frontend.Syntax.ElabTree
+import Solcore.Frontend.Syntax.Contract 
+import Solcore.Frontend.Syntax.Name
 import Solcore.Frontend.TypeInference.SccAnalysis
 import Solcore.Frontend.TypeInference.TcContract
 import Solcore.Frontend.TypeInference.TcEnv
@@ -21,13 +24,22 @@ import System.Exit
 
 -- main compiler driver function
 
+runParser :: String -> IO (Either String (CompUnit Name))
+runParser content = do 
+  let r1 = runAlex content parser 
+  case r1 of 
+    Left err -> do 
+      putStrLn err 
+      exitWith (ExitFailure 1)
+    Right t -> buildAST t
+
 pipeline :: IO ()
 pipeline = do
   opts <- argumentsParser
   let verbose = optVerbose opts
   content <- readFile (fileName opts)
-  let r1 = runAlex content parser
-  withErr r1 $ \ ast -> do
+  t' <- runParser content 
+  withErr t' $ \ ast -> do 
     withErr (lambdaLifting ast) $ \ (ast2, dStrs) -> do 
       when verbose $ do 
         putStrLn "AST after lambda lifting"

@@ -180,7 +180,7 @@ createFunction arg res ns dt@(DataTy n vs [(Constr m ts)]) ps bd mt
           targ = TyVar $ TVar arg 
           tres = TyVar $ TVar res 
           mtc = TyCon n (TyVar <$> vs)
-          idecl = Instance [] (Name "Invokable") [targ, tres] mtc [fd']
+          idecl = Instance [] (Name "invokable") [targ, tres] mtc [fd']
       debugCreateFunction fd 
       addDecl (TFunDef fd)
       addDecl (TInstDef idecl)
@@ -326,8 +326,9 @@ instance Vars (Equation Name) where
 
 instance Vars (Exp Name) where 
   vars (Var n) = [n]
-  vars (Con _ es) = vars es 
-  vars (FieldAccess e _) = vars e
+  vars (Con _ es) = vars es
+  vars (FieldAccess Nothing _) = []
+  vars (FieldAccess (Just e) _) = vars e
   vars (Call (Just e) n es) = [n] `union` vars (e : es)
   vars (Call Nothing n es) = [n] `union` vars es 
   vars (Lam ps bd _) = vars bd \\ vars ps

@@ -1,5 +1,5 @@
 contract PairModule {
-  data Pair(a,b) = Pair(a,b)
+  data Pair(a,b) = Pair(a,b);
 
   function fst (x) {
     match x {

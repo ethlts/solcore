@@ -1,6 +1,6 @@
 contract ListModule {
-  data List(a) = Nil | Cons(a,List(a))
-  data Bool = True | False
+  data List(a) = Nil | Cons(a,List(a));
+  data Bool = True | False;
 
 
   function foo (f, g, x, y) {

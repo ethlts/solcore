@@ -1,4 +1,4 @@
-data Memory(a) = Memory(Word)
+data Memory(a) = Memory(Word);
 
 function g() {
     let x : Memory(Memory(Word)) = Memory(0);

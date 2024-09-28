@@ -1,5 +1,6 @@
 contract Dwarves {
-  data Dwarf = Doc | Grumpy | Sleepy | Bashful | Happy | Sneezy | Dopey
+  data Dwarf = Doc | Grumpy | Sleepy | Bashful | Happy | Sneezy | Dopey;
+
 
   function fromEnum(c) {
     match c {

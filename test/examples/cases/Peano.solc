@@ -1,5 +1,5 @@
 contract Peano {
-  data Nat = Zero | Succ(Nat)
+  data Nat = Zero | Succ(Nat);
 
   function natInd (step,v,n) {
     match n {

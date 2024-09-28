@@ -2,7 +2,7 @@ class a: Enum {
   function fromEnum(a) -> Word;
 }
 
-data Food = Curry | Beans | Other
+data Food = Curry | Beans | Other;
 
 instance Food : Enum {
   function fromEnum(x : Food) {
