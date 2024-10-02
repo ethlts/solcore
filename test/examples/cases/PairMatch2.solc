@@ -1,6 +1,6 @@
-data Pair(a, b) = Pair(a, b)
+data Pair(a, b) = Pair(a, b);
 
-function snd(p: Pair(a, Word)) -> a {
+function snd(p: Pair(a, word)) -> a {
     match p {
     | Pair(_, w) => return w;
     };

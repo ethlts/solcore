@@ -34,10 +34,10 @@ tcStmt e@(lhs := rhs)
 tcStmt e@(Let n mt me)
   = do
       (me', psf, tf) <- case (mt, me) of
-                      (Just t, Just e1) -> do 
+                      (Just t, Just e1) -> do
                         (e', ps1, t1) <- tcExp e1
                         kindCheck t1 `wrapError` e
-                        s <- match t1 t 
+                        s <- match t1 t
                         pure (Just e', apply s ps1, apply s t1)
                       (Just t, Nothing) -> do 
                         return (Nothing, [], t)
@@ -47,7 +47,7 @@ tcStmt e@(Let n mt me)
                       (Nothing, Nothing) -> 
                         (Nothing, [],) <$> freshTyVar
       extEnv n (monotype tf)
-      pure (Let (Id n tf) mt me', psf, unit)
+      pure (Let (Id n tf) mt me', [], unit)
 tcStmt (StmtExp e)
   = do 
       (e', ps', t') <- tcExp e 
@@ -67,6 +67,25 @@ tcStmt s@(Asm yblk)
       let word' = monotype word 
       mapM_ (flip extEnv word') newBinds
       pure (Asm yblk, [], unit)
+
+subsCheck :: Scheme -> Scheme -> TcM () 
+subsCheck sigma1 sigma2@(Forall _ (_ :=> _)) 
+  = do 
+      (ps2 :=> t2) <- freshInst sigma2
+      let skol_tvs = fv t2
+      s <- subsCheckInst skol_tvs sigma1 t2
+      let esc_tvs = fv (apply s sigma1)
+          bad_tvs = filter (`elem` esc_tvs) skol_tvs
+      unless (null bad_tvs) $ do 
+        throwError "Type not polymorphic enough"
+
+subsCheckInst :: [Tyvar] -> Scheme -> Ty -> TcM Subst  
+subsCheckInst skol sch t 
+  = do 
+      (ps' :=> t') <- freshInst sch 
+      s@(Subst xs) <- mgu t t' 
+      pure (Subst [(x,t) | (x,t) <- xs, x `notElem` skol])
+
 
 
 tcEquations :: [Ty] -> Equations Name -> TcM (Equations Id, [Pred], Ty)
@@ -202,8 +221,12 @@ tcArg (Untyped n)
       pure (Typed (Id n v) v, (n, ty), v)
 tcArg (Typed n ty)
   = do 
-      ty' <- kindCheck ty 
-      pure (Typed (Id n ty') ty', (n, monotype ty'), ty')
+      ty1 <- kindCheck ty
+      pure (Typed (Id n ty1) ty1, (n, monotype ty1), ty1)
+
+skolemize :: Ty -> Ty 
+skolemize (TyVar (TVar n _)) = TyVar (TVar n True)
+skolemize (TyCon n ts) = TyCon n (map skolemize ts)
 
 -- kind check 
 

@@ -15,9 +15,9 @@ import Solcore.Frontend.Pretty.SolcorePretty  hiding((<>))
 varBind :: MonadError String m => Tyvar -> Ty -> m Subst 
 varBind v t
   | t == TyVar v = return mempty
-  | v `elem` fv t = infiniteTyErr v t 
-  | otherwise = do 
-    return (v +-> t)
+  | v `elem` fv t = infiniteTyErr v t
+  | rigid v = rigidVarError v t 
+  | otherwise = return (v +-> t)
 
 -- type matching 
 
@@ -32,7 +32,10 @@ match (TyCon n ts) (TyCon n' ts')
             sr <- go ts ts' 
             merge sl sr
       go _ _ = typesMatchListErr ts ts'
-match (TyVar v) t = pure (v +-> t)
+match t1@(TyVar v) t 
+  | rigid v && t1 == t = pure mempty 
+  | rigid v = rigidVarError v t 
+  | otherwise = pure (v +-> t)
 match t1 t2 = typesNotMatch t1 t2
 
 matchTypes :: MonadError String m => [Ty] -> [Ty] -> m Subst 
@@ -133,3 +136,13 @@ typesDoNotUnify t1 t2
                          , pretty t2
                          , "do not unify"
                          ]
+
+rigidVarError :: MonadError String m => Tyvar -> Ty -> m a 
+rigidVarError v t 
+  = throwError $ unwords ["Cannot unify"
+                         , pretty v 
+                         , "with"
+                         , pretty t 
+                         , "since"
+                         , pretty v 
+                         , "is a rigid type variable."]

@@ -208,7 +208,7 @@ instance Elab S.Ty where
         ts' <- elab ts 
         if isTy then pure $ TyCon n ts' 
           else if null ts then 
-            pure $ TyVar (TVar n)
+            pure $ TyVar (TVar n False)
           else throwError $ 
               unlines ["Undefined type:"
                       , pretty n

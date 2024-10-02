@@ -147,8 +147,8 @@ createLambdaType ns
       arg <- freshName "arg"
       res <- freshName "res"
       let 
-          vs = map TVar ns
-          vs' = map TVar (ns ++ [arg, res]) 
+          vs = map (flip TVar False) ns
+          vs' = map (flip TVar False) (ns ++ [arg, res]) 
           d = DataTy n vs' [Constr n (TyVar <$> vs)]
       debugCreateLambdaType d
       addDecl (TDataDef d)
@@ -177,8 +177,8 @@ createFunction arg res ns dt@(DataTy n vs [(Constr m ts)]) ps bd mt
           sig' = Signature [] [] (Name "invoke") [pl, parg] Nothing
           fd = FunDef sig bd
           fd' = FunDef sig' bd'
-          targ = TyVar $ TVar arg 
-          tres = TyVar $ TVar res 
+          targ = TyVar $ TVar arg False 
+          tres = TyVar $ TVar res False 
           mtc = TyCon n (TyVar <$> vs)
           idecl = Instance [] (Name "invokable") [targ, tres] mtc [fd']
       debugCreateFunction fd 

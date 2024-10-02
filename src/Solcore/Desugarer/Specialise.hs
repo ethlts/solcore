@@ -170,8 +170,8 @@ specialiseContract decl = pure decl
 
 specEntry :: Name -> SM ()
 specEntry name = withLocalState do
-    let any = TVar (Name "any")
-    let anytype = TyVar any
+    let any = TVar (Name "any") False
+    let anytype = TyVar any 
     mres <- lookupResolution name anytype
     case mres of
       Just (fd, ty, subst) -> do
@@ -377,7 +377,7 @@ specName n [] = n
 specName n ts = Name $ show n ++ "$" ++ intercalate "_" (map mangleTy ts)
 
 mangleTy :: Ty -> String
-mangleTy (TyVar (TVar (Name n))) = n
+mangleTy (TyVar (TVar (Name n) _)) = n
 mangleTy (TyCon (Name n) []) = n
 mangleTy (TyCon (Name n) ts) = n ++ "L" ++ intercalate "_" (map mangleTy ts) ++"J"
 

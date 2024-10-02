@@ -10,13 +10,13 @@ import Solcore.Frontend.Syntax.Ty
 -- basic type classes 
 
 selfVar :: Tyvar 
-selfVar = TVar (Name "self")
+selfVar = TVar (Name "self") False
 
 argsVar :: Tyvar 
-argsVar = TVar (Name "args")
+argsVar = TVar (Name "args") False
 
 retVar :: Tyvar 
-retVar = TVar (Name "ret")
+retVar = TVar (Name "ret") False 
 
 invokeClass :: Class Name 
 invokeClass 
