@@ -348,7 +348,7 @@ tcFunDef d@(FunDef sig bd)
   = withLocalEnv do
       -- checking if the function isn't defined 
       (params', schs, ts) <- tcArgs (sigParams sig) `wrapError` d
-      (bd', ps1, t') <- withLocalCtx schs (tcBody bd)
+      (bd', ps1, t') <- withLocalCtx schs (tcBody bd) `wrapError` d
       sch <- askEnv (sigName sig)
       (ps :=> t) <- freshInst sch
       let t1 = foldr (:->) t' ts

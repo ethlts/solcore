@@ -4,8 +4,9 @@ module Solcore.Frontend.Syntax.Name where
 import Data.Generics (Data, Typeable)
 import Data.String
 
-newtype Name 
+data Name 
   = Name {unName :: String}
+  | QualName Name String 
     deriving (Eq, Ord, Data, Typeable)
 
 instance Show Name where 
@@ -13,7 +14,3 @@ instance Show Name where
 
 instance IsString Name where 
   fromString = Name
-
-newtype QualName 
-  = QualName { unQName :: [Name] }
-    deriving (Eq, Ord, Show, Data, Typeable)
