@@ -1,4 +1,4 @@
-data Bool = True | False 
+data Bool = True | False; 
 
 class a : Eq {
   function eq (x : a, y : a) -> Bool;
@@ -8,13 +8,13 @@ class (a : Eq) => a : Ord {
   function lt (x : a, y : a) -> Bool ; 
 }
 
-instance Word : Eq {
+instance word : Eq {
   function eq (x,y) {
     match primEqWord(x,y) {
     | 0 => 
       return False; 
     | _ => 
-      return True;
+      return True ;
     };
   }
 }

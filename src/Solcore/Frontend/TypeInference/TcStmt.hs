@@ -192,8 +192,8 @@ tcExp (FieldAccess (Just e) n)
       s <- askField tn n 
       (ps' :=> t') <- freshInst s 
       pure (FieldAccess (Just e') (Id n t'), ps ++ ps', t')
-tcExp (Call me n args)
-  = tcCall me n args 
+tcExp ex@(Call me n args)
+  = tcCall me n args `wrapError` ex
 tcExp e@(Lam args bd _)
   = do 
       (args', schs, ts') <- tcArgs args 
@@ -269,7 +269,7 @@ tcCall Nothing n args
       (ps :=> t) <- freshInst s
       t' <- freshTyVar
       (es', pss', ts') <- unzip3 <$> mapM tcExp args
-      s' <- unify t (foldr (:->) t' ts')
+      s' <- unify (foldr (:->) t' ts') t
       let ps' = foldr union [] (ps : pss')
           t1 = foldr (:->) t' ts'
       withCurrentSubst (Call Nothing (Id n t1) es', ps', t')
@@ -280,7 +280,7 @@ tcCall (Just e) n args
       (ps1 :=> t) <- freshInst s
       t' <- freshTyVar
       (es', pss', ts') <- unzip3 <$> mapM tcExp args 
-      s' <- unify t (foldr (:->) t' ts')
+      s' <- unify (foldr (:->) t' ts') t
       let ps' = foldr union [] ((ps ++ ps1) : pss')
       withCurrentSubst (Call (Just e') (Id n t') es', ps', t')
 

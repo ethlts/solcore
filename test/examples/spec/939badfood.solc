@@ -1,5 +1,5 @@
 class a: Enum {
-  function fromEnum(a) -> word;
+  function fromEnum(x : a) -> word;
 }
 
 data Food = Curry | Beans | Other;

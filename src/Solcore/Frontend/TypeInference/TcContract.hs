@@ -241,6 +241,7 @@ tcInstance idecl@(Instance ctx n ts t funs)
       checkCompleteInstDef n (map (sigName . funSignature) funs) 
       funs' <- buildSignatures n ts t funs  
       (funs1, pss', ts') <- unzip3 <$> mapM tcFunDef  funs' `wrapError` idecl
+      s <- getSubst
       withCurrentSubst (Instance ctx n ts t funs1)
 
 checkCompleteInstDef :: Name -> [Name] -> TcM ()
@@ -258,8 +259,9 @@ buildSignatures :: Name -> [Ty] -> Ty -> [FunDef Name] -> TcM [FunDef Name]
 buildSignatures n ts t funs 
   = do 
       cpred <- classpred <$> askClassInfo n 
-      sm <- matchPred cpred (InCls n t ts) 
-      schs <- mapM (askEnv . sigName . funSignature) funs 
+      sm <- matchPred cpred (InCls n t ts)
+      schs <- mapM (askEnv . sigName . funSignature) funs
+      liftIO $ mapM_ (putStrLn . pretty) schs
       let  
           app (Forall vs (_ :=> t1)) = apply sm t1
           tinsts = map app schs
@@ -278,8 +280,8 @@ typeSignature args ret sig
         , sigReturn = Just ret
         }
     where 
-      paramType t (Typed n _) = Typed n t
-      paramType t (Untyped n) = Typed n t 
+      paramType t (Typed n _) = Typed n (skolemize t)
+      paramType t (Untyped n) = Typed n (skolemize t)
 
 tcClass :: Class Name -> TcM (Class Id)
 tcClass iclass@(Class ctx n vs v sigs) 
@@ -346,8 +348,8 @@ isLambdaGenerated n
 tcFunDef :: FunDef Name -> TcM (FunDef Id, [Pred], Ty)
 tcFunDef d@(FunDef sig bd) 
   = withLocalEnv do
-      -- checking if the function isn't defined 
-      (params', schs, ts) <- tcArgs (sigParams sig) `wrapError` d
+      -- checking if the function isn't defined
+      (params', schs, ts) <- tcArgs (sigParams sig)
       (bd', ps1, t') <- withLocalCtx schs (tcBody bd) `wrapError` d
       sch <- askEnv (sigName sig)
       (ps :=> t) <- freshInst sch
@@ -429,7 +431,7 @@ addClassMethod p@(InCls _ _ _) sig@(Signature _ ctx f ps t)
       let ty = funtype tps t'
           vs = fv ty
           ctx' = [p] `union` ctx
-      r <- maybeAskEnv f 
+      r <- maybeAskEnv f
       unless (isNothing r) (duplicatedClassMethod f `wrapError` sig)
       extEnv f (Forall vs (ctx' :=> ty))
 addClassMethod p@(_ :~: _) (Signature _ _ n _ _) 
