@@ -269,7 +269,7 @@ instance Pretty Literal where
   ppr (StrLit l) = quotes (text l)
 
 instance Pretty Tyvar where 
-  ppr (TVar n) = ppr n 
+  ppr (TVar n _) = ppr n 
 
 instance Pretty Pred where 
   ppr (InCls n t ts) =

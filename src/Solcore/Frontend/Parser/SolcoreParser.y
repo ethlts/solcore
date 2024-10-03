@@ -4,10 +4,8 @@ module Solcore.Frontend.Parser.SolcoreParser where
 import Data.List.NonEmpty 
 
 import Solcore.Frontend.Lexer.SolcoreLexer hiding (lexer)
-import Solcore.Frontend.Syntax.Contract
 import Solcore.Frontend.Syntax.Name
-import Solcore.Frontend.Syntax.Stmt
-import Solcore.Frontend.Syntax.Ty
+import Solcore.Frontend.Syntax.SyntaxTree
 import Solcore.Primitives.Primitives
 import Language.Yul
 }
@@ -22,7 +20,6 @@ import Language.Yul
 %token
       identifier {Token _ (TIdent $$)}
       number     {Token _ (TNumber $$)}
-      tycon      {Token _ (TTycon $$)}
       stringlit  {Token _ (TString $$)}
       'contract' {Token _ TContract}
       'import'   {Token _ TImport}
@@ -70,7 +67,7 @@ import Language.Yul
 %%
 -- compilation unit definition 
 
-CompilationUnit :: {CompUnit Name}
+CompilationUnit :: { CompUnit }
 CompilationUnit : ImportList TopDeclList          { CompUnit $1 $2 } 
 
 ImportList :: { [Import] }
@@ -80,14 +77,14 @@ ImportList : ImportList Import                     { $2 : $1 }
 Import :: { Import }
 Import : 'import' QualName ';'                     { Import (QualName $2) }
 
-TopDeclList :: {[TopDecl Name]}
+TopDeclList :: { [TopDecl] }
 TopDeclList : TopDecl TopDeclList                  { $1 : $2 }
              | {- empty -}                         { [] }
 
 
 -- top level declarations 
 
-TopDecl :: {TopDecl Name}
+TopDecl :: { TopDecl }
 TopDecl : Contract                                 {TContr $1}
         | Function                                 {TFunDef $1}
         | ClassDef                                 {TClassDef $1}
@@ -111,21 +108,21 @@ Status : NameList       {DisableFor $1}
        | {- empty -}    {DisableAll}
 
 NameList :: {NonEmpty Name}
-NameList : Con ',' NameList { cons $1 $3 }
-         | Con              { singleton $1 }
+NameList : Name ',' NameList { cons $1 $3 }
+         | Name              { singleton $1 }
 
 -- contracts 
 
-Contract :: { Contract Name }
-Contract : 'contract' Con OptParam '{' DeclList '}' { Contract $2 $3 $5 }
+Contract :: { Contract }
+Contract : 'contract' Name OptParam '{' DeclList '}' { Contract $2 $3 $5 }
 
-DeclList :: { [ContractDecl Name] }
+DeclList :: { [ContractDecl] }
 DeclList : Decl DeclList                           { $1 : $2 }
          | {- empty -}                             { [] }
 
 -- declarations 
 
-Decl :: { ContractDecl Name }
+Decl :: { ContractDecl }
 Decl : FieldDef                                    {CFieldDecl $1}
      | DataDef                                     {CDataDecl $1}
      | Function                                    {CFunDecl $1}
@@ -135,39 +132,39 @@ Decl : FieldDef                                    {CFieldDecl $1}
 -- type synonym 
 
 TypeSynonym :: {TySym}
-TypeSynonym : 'type' Con OptParam '=' Type         {TySym $2 $3 $5}
+TypeSynonym : 'type' Name OptParam '=' Type ';'    {TySym $2 $3 $5}
 
 -- fields 
 
-FieldDef :: { Field Name }
+FieldDef :: { Field }
 FieldDef : Name ':' Type InitOpt ';'               {Field $1 $3 $4}
 
 -- algebraic data types 
 
 DataDef :: { DataTy }
-DataDef : 'data' Con OptParam '=' Constrs          {DataTy $2 $3 $5}     
+DataDef : 'data' Name OptParam '=' Constrs ';'     {DataTy $2 $3 $5}     
 
 Constrs :: {[Constr]}
 Constrs : Constr '|' Constrs                       {$1 : $3}
         | Constr                                   {[$1]}
 
 Constr :: { Constr }
-Constr : Con OptTypeParam                          { Constr $1 $2 }
+Constr : Name OptTypeParam                          { Constr $1 $2 }
 
 -- class definitions 
 
-ClassDef :: { Class Name }
+ClassDef :: { Class }
 ClassDef 
-  : 'class' ContextOpt Var ':' Con OptParam ClassBody {Class $2 $5 $6 $3 $7}
+  : 'class' ContextOpt Var ':' Name OptParam ClassBody {Class $2 $5 $6 $3 $7}
 
-ClassBody :: {[Signature Name]}
+ClassBody :: {[Signature]}
 ClassBody : '{' Signatures '}'                     {$2}
 
-OptParam :: { [Tyvar] }
+OptParam :: { [Ty] }
 OptParam :  '(' VarCommaList ')'                   {$2}
          | {- empty -}                             {[]}
 
-VarCommaList :: { [Tyvar] }
+VarCommaList :: { [Ty] }
 VarCommaList : Var ',' VarCommaList                {$1 : $3} 
              | Var                                 {[$1]}
 
@@ -183,30 +180,33 @@ ConstraintList : Constraint ',' ConstraintList     {$1 : $3}
                | Constraint                        {[$1]}
 
 Constraint :: { Pred }
-Constraint : Type ':' Con OptTypeParam             {InCls $3 $1 $4} 
+Constraint : Type ':' Name OptTypeParam             {InCls $3 $1 $4} 
 
-Signatures :: { [Signature Name] }
+Signatures :: { [Signature ] }
 Signatures : Signature ';' Signatures              {$1 : $3}
            | {- empty -}                           {[]}
 
-Signature :: { Signature Name}
-Signature : 'forall' VarCommaList '.' Context 'function' Name '(' ParamList ')' OptRetTy {Signature $2 $4 $6 $8 $10}
-          | 'function' Name '(' ParamList ')' OptRetTy   {Signature [] [] $2 $4 $6}
+Signature :: { Signature }
+Signature : SigPrefix 'function' Name '(' ParamList ')' OptRetTy {Signature (fst $1) (snd $1) $3 $5 $7}
 
+SigPrefix :: {([Ty], [Pred])}
+SigPrefix : 'forall' ConstraintList '.'                {(tysFrom $2, $2)}
+          | 'forall' TypeCommaList '.'                 {($2, [])}
+          | {- empty -}                                {([], [])}
 
-ParamList :: { [Param Name] }
+ParamList :: { [Param] }
 ParamList : Param                                  {[$1]}
           | Param  ',' ParamList                   {$1 : $3}
           | {- empty -}                            {[]}
 
-Param :: { Param Name }
+Param :: { Param }
 Param : Name ':' Type                              {Typed $1 $3}
       | Name                                       {Untyped $1}
 
 -- instance declarations 
 
-InstDef :: { Instance Name }
-InstDef : 'instance' ContextOpt Type ':' Con OptTypeParam InstBody { Instance $2 $5 $6 $3 $7 }
+InstDef :: { Instance }
+InstDef : 'instance' ContextOpt Type ':' Name OptTypeParam InstBody { Instance $2 $5 $6 $3 $7 }
 
 OptTypeParam :: { [Ty] }
 OptTypeParam : '(' TypeCommaList ')'          {$2}
@@ -216,16 +216,16 @@ TypeCommaList :: { [Ty] }
 TypeCommaList : Type ',' TypeCommaList             {$1 : $3}
               | Type                               {[$1]}
 
-Functions :: { [FunDef Name] }
+Functions :: { [FunDef] }
 Functions : Function Functions                     {$1 : $2}
           | {- empty -}                            {[]}
 
-InstBody :: {[FunDef Name]}
+InstBody :: {[FunDef]}
 InstBody : '{' Functions '}'                       {$2}
 
 -- Function declaration 
 
-Function :: { FunDef Name }
+Function :: { FunDef }
 Function : Signature Body {FunDef $1 $2}
 
 OptRetTy :: { Maybe Ty }
@@ -234,23 +234,22 @@ OptRetTy : '->' Type                               {Just $2}
 
 -- Contract constructor 
 
-Constructor :: { Constructor Name }
+Constructor :: { Constructor }
 Constructor : 'constructor' '(' ParamList ')' Body {Constructor $3 $5}
 
 -- Function body 
 
-Body :: { [Stmt Name] }
+Body :: { [Stmt] }
 Body : '{' StmtList '}'                            {$2} 
 
-StmtList :: { [Stmt Name] }
+StmtList :: { [Stmt] }
 StmtList : Stmt ';' StmtList                       {$1 : $3}
          | {- empty -}                             {[]}
 
 -- Statements 
 
-
-Stmt :: { Stmt Name }
-Stmt : Expr '=' Expr                               {$1 := $3}
+Stmt :: { Stmt }
+Stmt : Expr '=' Expr                               {Assign $1 $3}
      | 'let' Name ':' Type InitOpt                 {Let $2 (Just $4) $5}
      | 'let' Name InitOpt                          {Let $2 Nothing $3}
      | Expr                                        {StmtExp $1}
@@ -259,63 +258,56 @@ Stmt : Expr '=' Expr                               {$1 := $3}
      | AsmBlock                                    {Asm $1}
 
 
-MatchArgList :: {[Exp Name]}
+MatchArgList :: {[Exp]}
 MatchArgList : Expr                                {[$1]}
              | Expr ',' MatchArgList               {$1 : $3}
 
-InitOpt :: {Maybe (Exp Name)}
+InitOpt :: {Maybe Exp}
 InitOpt : {- empty -}                              {Nothing}
         | '=' Expr                                 {Just $2}
 
 -- Expressions 
 
-Expr :: { Exp Name }
-Expr : Name                                        {Var $1}
-     | Con ConArgs                                 {Con $1 $2}
+Expr :: { Exp }
+Expr : Name FunArgs                                {ExpName Nothing $1 $2}
      | Literal                                     {Lit $1}
      | '(' Expr ')'                                {$2}
-     | Expr '.' Name                               {FieldAccess $1 $3}
-     | Expr '.' Name FunArgs                       {Call (Just $1) $3 $4}
-     | Name FunArgs                                {Call Nothing $1 $2}
+     | Expr '.' Name FunArgs                       {ExpName (Just $1) $3 $4}
      | 'lam' '(' ParamList ')' OptRetTy Body       {Lam $3 $6 $5} 
 
-ConArgs :: {[Exp Name]}
-ConArgs : '(' ExprCommaList ')'                    {$2}
+FunArgs :: {[Exp]}
+FunArgs : '(' ExprCommaList ')'                    {$2}
         | {- empty -}                              {[]} 
 
-FunArgs :: {[Exp Name]} 
-FunArgs : '(' ExprCommaList ')'                    {$2}
-
-ExprCommaList :: { [Exp Name] }
+ExprCommaList :: { [Exp] }
 ExprCommaList : Expr                               {[$1]}
               | {- empty -}                        {[]}
               | Expr ',' ExprCommaList             {$1 : $3}
 
 -- Pattern matching equations 
 
-Equations :: { [([Pat Name], [Stmt Name])]}
+Equations :: { [([Pat], [Stmt])]}
 Equations : Equation Equations                     {$1 : $2}
           | {- empty -}                            {[]}
 
-Equation :: { ([Pat Name], [Stmt Name]) }
+Equation :: { ([Pat], [Stmt]) }
 Equation : '|' PatCommaList '=>' StmtList          {($2, $4)}
 
-PatCommaList :: { [Pat Name] }
+PatCommaList :: { [Pat] }
 PatCommaList : Pattern                             {[$1]}
              | Pattern ',' PatCommaList            {$1 : $3}
 
-Pattern :: { Pat Name }
-Pattern : Name                                     {PVar $1}
-        | Con PatternList                          {PCon $1 $2}
+Pattern :: { Pat }
+Pattern : Name PatternList                         {Pat $1 $2}
         | '_'                                      {PWildcard}
         | Literal                                  {PLit $1}
         | '(' Pattern ')'                          {$2}
 
-PatternList :: {[Pat Name]}
+PatternList :: {[Pat]}
 PatternList : '(' PatList ')'                      {$2}
             | {- empty -}                          {[]}
 
-PatList :: { [Pat Name] }
+PatList :: { [Pat] }
 PatList : Pattern                                  {[$1]}
         | Pattern ',' PatList                      {$1 : $3}
 
@@ -328,22 +320,18 @@ Literal : number                                   {IntLit $ toInteger $1}
 -- basic type definitions 
 
 Type :: { Ty }
-Type : Con OptTypeParam                            {TyCon $1 $2}
-     | Var                                         {TyVar  $1}
+Type : Name OptTypeParam                            {TyCon $1 $2}
      | LamType                                     {uncurry funtype $1}
 
 LamType :: {([Ty], Ty)}
 LamType : '(' TypeCommaList ')' '->' Type          {($2, $5)}
 
-Var :: { Tyvar }
-Var : Name                                         {TVar $1}  
-
-Con :: { Name }
-Con : tycon                                        { Name $1 }
+Var :: { Ty }
+Var : Name                                         {TyCon $1 []}  
 
 QualName :: { [Name] }  
-QualName : Con                                     { [$1] }
-         | QualName '.' Con                        { $3 : $1 }
+QualName : Name                                     { [$1] }
+         | QualName '.' Name                        { $3 : $1 }
 
 Name :: { Name }
 Name : identifier                                  { Name $1 }

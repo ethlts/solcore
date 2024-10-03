@@ -29,7 +29,7 @@ runTcM m env = runExceptT (runStateT (runWriterT m) env)
 
 freshVar :: TcM Tyvar 
 freshVar 
-  = TVar <$> freshName
+  = (flip TVar False) <$> freshName
 
 freshName :: TcM Name 
 freshName 
@@ -61,6 +61,12 @@ unify t t'
       s <- getSubst 
       s' <- mgu (apply s t) (apply s t')
       extSubst s'
+
+matchTy :: Ty -> Ty -> TcM Subst 
+matchTy t t' 
+  = do 
+      s <- match t t' 
+      extSubst s 
 
 -- type instantiation 
 

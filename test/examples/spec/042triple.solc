@@ -1,5 +1,5 @@
 contract Triple {
-data Triple(a,b,c) = Triple(a,b,c)
+data Triple(a,b,c) = Triple(a,b,c);
 
   function asel(t) {
     match t {

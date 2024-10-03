@@ -137,9 +137,9 @@ getParamId (Untyped i) = i
 -----------------------------------------------------------------------
 
 translateType :: Ty -> EM Core.Type
-translateType (TyCon "Word" []) = pure Core.TWord
+translateType (TyCon "word" []) = pure Core.TWord
 -- translateType _ Fun.TBool = Core.TBool
-translateType (TyCon "Unit" []) = pure Core.TUnit
+translateType (TyCon "unit" []) = pure Core.TUnit
 translateType t@(u :-> v) = error ("Cannot translate function type " ++ show t)
 translateType (TyCon name tas) = translateTCon name tas
 translateType t = error ("Cannot translate type " ++ show t)
@@ -437,4 +437,4 @@ unwrapId :: Id -> CoreName
 unwrapId = unName . idName
 
 unwrapTyvar :: Tyvar -> CoreName
-unwrapTyvar (TVar n) = unName n
+unwrapTyvar (TVar n _) = unName n

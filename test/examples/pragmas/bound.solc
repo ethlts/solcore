@@ -3,7 +3,7 @@ pragma no-bounded-variable-condition F;
 class a:D { function f(x:a); }
 class a:F(b) {}
 
-data Memory(a) = Memory(Word)
+data Memory(a) = Memory(word);
 
 instance Memory(a):F(Memory(Memory(Memory(a)))) {}
 instance (c:D,a:F(c)) => Memory(Memory(Memory(a))):D {

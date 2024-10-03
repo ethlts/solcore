@@ -1,6 +1,6 @@
 contract EitherModule {
-  data Either(a,b) = Left(a) | Right(b)
-  data List(a) = Nil | Cons(a,List(a))
+  data Either(a,b) = Left(a) | Right(b);
+  data List(a) = Nil | Cons(a,List(a));
 
   function either (f, g, x) {
     match x {

@@ -1,5 +1,5 @@
-data Food = Curry | Beans | Other
-data CFood = Red(Food) | Green(Food) | Nocolor
+data Food = Curry | Beans | Other;
+data CFood = Red(Food) | Green(Food) | Nocolor;
 
 
 

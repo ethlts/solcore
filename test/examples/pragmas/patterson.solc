@@ -6,9 +6,9 @@ class self:C {}
 class self:D {}
 
 
-data Uint256 = U
-data T(x) = T
-data S(x) = T
+data Uint256 = U;
+data T(x) = T;
+data S(x) = T;
 
 // This works.
 instance (U:A) => T(U):D {}

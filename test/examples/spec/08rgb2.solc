@@ -1,5 +1,5 @@
 contract RGB {
-  data Color = R | G | B
+  data Color = R | G | B;
 
   function fromEnum(c) {
     match c {

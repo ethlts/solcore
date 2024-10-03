@@ -7,12 +7,12 @@ import Solcore.Frontend.Syntax.Name
 -- basic typing infrastructure 
 
 data Tyvar 
-  = TVar Name 
+  = TVar {
+      tyVarName :: Name 
+    , rigid :: Bool 
+    }
   deriving (Eq, Ord, Show, Data, Typeable)
    
-tyVarName :: Tyvar -> Name 
-tyVarName (TVar n) = n
-
 data Ty 
   = TyVar Tyvar      -- type variable 
   | TyCon Name [Ty]  -- type constructor 

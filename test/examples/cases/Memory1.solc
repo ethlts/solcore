@@ -1,7 +1,7 @@
-data Memory(a) = Memory(Word)
+data memory(a) = memory(word);
 
 function g() {
-    let x : Memory(Memory(Word));
-    let y : Memory(Word) = Memory(1);
-    x = Memory(0);
+    let x : memory(memory(word));
+    let y : memory(word) = memory(1);
+    x = memory(0);
 }

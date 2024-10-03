@@ -3,7 +3,7 @@ function id(x) {
 }
 
 contract SimpleLambda{
-  function f (z : Word) {
+  function f (z : word) {
     let n = lam (x) {
       return x;
     } ;

@@ -5,6 +5,7 @@ import Data.Generics (Data, Typeable)
 import Solcore.Frontend.Syntax.Name
 import Solcore.Frontend.Syntax.Ty
 import Language.Yul
+
 -- definition of statements 
 
 type Equation a = ([Pat a], [Stmt a])
@@ -31,7 +32,7 @@ data Param a
 data Exp a 
   = Var a                              -- variable  
   | Con a [Exp a]                      -- data type constructor
-  | FieldAccess (Exp a) a              -- field access  
+  | FieldAccess (Maybe (Exp a)) a      -- field access  
   | Lit Literal                        -- literal 
   | Call (Maybe (Exp a)) a [Exp a]     -- function call
   | Lam [Param a] (Body a) (Maybe Ty)  -- lambda-abstraction

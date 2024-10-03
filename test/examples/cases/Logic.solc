@@ -1,5 +1,5 @@
 contract Logic {
-  data Bool = True | False 
+  data Bool = True | False; 
 
   function not (x) {
     match x {

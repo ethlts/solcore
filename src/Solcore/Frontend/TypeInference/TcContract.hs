@@ -354,6 +354,7 @@ tcFunDef d@(FunDef sig bd)
       let t1 = foldr (:->) t' ts
       sch' <- generalize (ps1, t1)
       s <- match t t1 `wrapError` d
+      subsCheck sch sch'
       rTy <- withCurrentSubst t'
       let sig' = Signature (sigVars sig) 
                            (sigContext sig) 
@@ -367,7 +368,7 @@ scanFun :: FunDef Name -> TcM (FunDef Name)
 scanFun (FunDef sig bd)
   = flip FunDef bd <$> fillSignature sig 
     where 
-      f (Typed n t) = pure $ Typed n t
+      f (Typed n t) = pure $ Typed n (skolemize t)
       f (Untyped n) = Typed n <$> freshTyVar
       fillSignature (Signature vs ctx n ps t)
         = do 
@@ -538,7 +539,7 @@ anfInstance inst@(q :=> p@(InCls c t as)) = q ++ q' :=> InCls c t bs
     q' = zipWith (:~:) bs as
     bs = map TyVar $ take (length as) freshNames
     tvs = fv inst
-    freshNames = filter (not . flip elem tvs) (TVar <$> namePool)
+    freshNames = filter (not . flip elem tvs) (flip TVar False <$> namePool)
 
 -- checking Patterson conditions 
 
