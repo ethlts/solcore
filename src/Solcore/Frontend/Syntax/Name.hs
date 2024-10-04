@@ -5,12 +5,14 @@ import Data.Generics (Data, Typeable)
 import Data.String
 
 data Name 
-  = Name {unName :: String}
+  = Name String
   | QualName Name String 
     deriving (Eq, Ord, Data, Typeable)
 
 instance Show Name where 
-  show = unName
+  show (Name s) = s 
+  show (QualName n s) 
+    = show n ++ "." ++ s 
 
 instance IsString Name where 
   fromString = Name

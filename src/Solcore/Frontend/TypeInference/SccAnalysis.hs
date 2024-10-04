@@ -96,7 +96,7 @@ mkEdges tables pos
       = case Map.lookup k pos of 
           Just n -> pure n 
           _ -> pure minBound 
-    err v = throwError ("Undefined name:\n" ++ unName v)
+    err v = throwError ("Undefined name:\n" ++ show v)
 
 mkCallTable :: HasDeps a => [a] -> SCC (Map Name [Name])
 mkCallTable ds 
@@ -144,7 +144,7 @@ rebuild pmap dmap n
       Just k -> 
         case Map.lookup k dmap of
           Just d -> pure d
-          Nothing -> throwError ("Impossible! Undefined decl:" ++ (unName k)) 
+          Nothing -> throwError ("Impossible! Undefined decl:" ++ (show k)) 
       Nothing -> throwError ("Impossible! Undefined decl:" ++ show n)
 
 sortDecls :: HasDeps a => Map Int Name -> 

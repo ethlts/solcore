@@ -104,7 +104,7 @@ instance Compile (FunDef Id) where
     = do
         bd1 <- replace bd
         let n = sigName sig 
-        bd' <- local (\ ns -> ns ++ "_" ++ unName n) 
+        bd' <- local (\ ns -> ns ++ "_" ++ show n) 
                      (compile bd1)
         return (FunDef sig (concat bd'))
 

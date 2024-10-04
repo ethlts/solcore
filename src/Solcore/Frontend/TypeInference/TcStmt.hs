@@ -133,7 +133,7 @@ tiPat p@(PCon n ps)
       -- typing parameters 
       (ps1, ts, lctxs) <- unzip3 <$> mapM tiPat ps
       -- asking type from environment 
-      st <- askEnv n
+      st <- askEnv n `wrapError` p
       (ps' :=> tc) <- freshInst st
       tr <- freshTyVar
       s <- unify tc (funtype ts tr) `wrapError` p
@@ -172,7 +172,7 @@ tcExp e@(Con n es)
       -- typing parameters 
       (es', pss, ts) <- unzip3 <$> mapM tcExp es 
       -- getting the type from the environment 
-      sch <- askEnv n 
+      sch <- askEnv n `wrapError` e 
       (ps :=> t) <- freshInst sch
       -- unifying infered parameter types
       t' <- freshTyVar

@@ -25,5 +25,5 @@ contract NegBool {
     };
   }
 
-  function main() { return  fromB(neg(F)); }
+  function main() { return  fromB(Neg.neg(F)); }
 }

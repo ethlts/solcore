@@ -133,7 +133,7 @@ desugarCall me n es
       b <- isDirectCall n 
       me' <- liftLambda me 
       es' <- liftLambda es 
-      let m = Name "invoke"
+      let m = QualName (Name "invokable") "invoke"
       if b then
         pure (Call me' n es')
       else 
@@ -233,7 +233,7 @@ runLiftM :: LiftM a -> [Name] -> Either String (a, Env)
 runLiftM m ns = runIdentity (runExceptT (runStateT m initEnv))
     where 
       initEnv = Env [TClassDef invokeClass] ns' 0 []
-      ns' = map Name ["primEqWord", "primAddWord", "invoke"] ++ ns
+      ns' = map Name ["primEqWord", "primAddWord"] ++ ns ++ [QualName (Name "invokable") "invoke"]
 
 freshName :: String -> LiftM Name 
 freshName s 
@@ -243,6 +243,8 @@ freshName s
       pure $ Name (s ++ show n)
 
 isDirectCall :: Name -> LiftM Bool
+-- for now, we assume that qualified names are just direct call
+isDirectCall (QualName _ _) = pure True 
 isDirectCall n 
   = do 
       ns <- gets functionNames 

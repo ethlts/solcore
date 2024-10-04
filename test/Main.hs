@@ -66,7 +66,7 @@ cases
               , runTestForFile "BoolNot.solc" caseFolder
               , expectFail $ runTestForFile "Compose.solc" caseFolder
               , expectFail $ runTestForFile "DupFun.solc" caseFolder
-              , expectFail $ runTestForFile "DuplicateFun.solc" caseFolder
+              , runTestForFile "DuplicateFun.solc" caseFolder
               , runTestForFile "EitherModule.solc" caseFolder
               , runTestForFile "Id.solc" caseFolder
               , runTestForFile "IncompleteInstDef.solc" caseFolder 
@@ -91,6 +91,7 @@ cases
               , runTestForFile "SingleFun.solc" caseFolder
               , runTestForFile "assembly.solc" caseFolder
               , runTestForFile "join.solc" caseFolder
+              , runTestForFile "EqQual.solc" caseFolder 
               ]
     where 
       caseFolder = "./test/examples/cases"
