@@ -30,6 +30,7 @@ tcStmt e@(lhs := rhs)
       (lhs1, ps1, t1) <- tcExp lhs
       (rhs1, ps2, t2) <- tcExp rhs
       s <- match t2 t1
+      extSubst s 
       pure (lhs1 := rhs1, apply s $ ps1 ++ ps2, unit)
 tcStmt e@(Let n mt me)
   = do
@@ -38,6 +39,7 @@ tcStmt e@(Let n mt me)
                         (e', ps1, t1) <- tcExp e1
                         kindCheck t1 `wrapError` e
                         s <- match t1 t
+                        extSubst s
                         pure (Just e', apply s ps1, apply s t1)
                       (Just t, Nothing) -> do 
                         return (Nothing, [], t)
