@@ -26,7 +26,7 @@ spec
               , runTestForFile "031maybe.solc" specFolder
               , runTestForFile "032simplejoin.solc" specFolder
               , runTestForFile "033join.solc" specFolder
-              , expectFail $ runTestForFile "034cojoin.solc" specFolder
+              , runTestForFile "034cojoin.solc" specFolder
               , runTestForFile "035padding.solc" specFolder
               , runTestForFile "036wildcard.solc" specFolder
               , runTestForFile "037dwarves.solc" specFolder
@@ -40,7 +40,7 @@ spec
               , runTestForFile "09not.solc" specFolder 
               , runTestForFile "10negBool.solc" specFolder
               , runTestForFile "11negPair.solc" specFolder
-              , expectFail $ runTestForFile "903badassign.solc" specFolder
+              , runTestForFile "903badassign.solc" specFolder
               , runTestForFile "939badfood.solc" specFolder
               ]
     where 
@@ -90,6 +90,7 @@ cases
               , runTestForFile "SimpleLambda.solc" caseFolder
               , runTestForFile "SingleFun.solc" caseFolder
               , runTestForFile "assembly.solc" caseFolder
+              , expectFail $ runTestForFile "joinErr.solc" caseFolder 
               ]
     where 
       caseFolder = "./test/examples/cases"
