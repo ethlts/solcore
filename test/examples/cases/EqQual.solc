@@ -1,0 +1,24 @@
+data Bool = True | False; 
+
+class a : Eq {
+  function eq (x : a, y : a) -> Bool;
+}
+
+class (a : Eq) => a : Ord {
+  function lt (x : a, y : a) -> Bool ; 
+}
+
+instance word : Eq {
+  function eq (x,y) {
+    match primEqWord(x,y) {
+    | 0 => 
+      return False; 
+    | _ => 
+      return True ;
+    };
+  }
+}
+
+function foo (x) {
+  return Eq.eq (x, 0);
+}

@@ -76,6 +76,11 @@ isTyVar :: Ty -> Bool
 isTyVar (TyVar _) = True 
 isTyVar _ = False 
 
+isClassName :: Maybe S.Exp -> ElabM Bool 
+isClassName Nothing = pure False 
+isClassName (Just (S.ExpName _ n _)) 
+  = (n `elem`) <$> gets classes 
+
 class Elab a where 
   type Res a
   initialEnv :: a -> Env
@@ -360,6 +365,11 @@ instance Elab S.Param where
   elab (S.Untyped n) 
     = pure (Untyped n)
 
+mkClassName :: Maybe (Exp Name) -> Name -> Name 
+mkClassName Nothing n = n 
+mkClassName (Just (Var x)) n 
+  = QualName x (pretty n)
+
 instance Elab S.Exp where 
   type Res S.Exp = Exp Name 
 
@@ -370,16 +380,19 @@ instance Elab S.Exp where
   elab (S.ExpName me n es) 
     = do 
         me' <- elab me 
-        es' <- elab es 
+        es' <- elab es
         isCon <- isDefinedConstr n 
         isField <- isField n 
         isFun <- isFunDef n 
+        isClass <- isClassName me 
         -- condition for valid constructor use 
         if isCon && isNothing me' then 
           pure (Con n es')
         -- condition for valid field use 
         else if isField then 
           pure (FieldAccess me' n)
+        else if isClass then 
+          pure (Call Nothing (mkClassName me' n) es')
         -- condition for function call 
         else if isFun then 
           pure (Call me' n es')

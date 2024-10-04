@@ -242,7 +242,7 @@ freshName s
       modify (\ env -> env {fresh = n + 1})
       pure $ Name (s ++ show n)
 
-isDirectCall :: Name -> LiftM Bool 
+isDirectCall :: Name -> LiftM Bool
 isDirectCall n 
   = do 
       ns <- gets functionNames 
