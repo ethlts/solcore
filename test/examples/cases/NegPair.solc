@@ -29,7 +29,7 @@ function snd(p) {
 
 instance (a:Neg,b:Neg) => Pair(a,b):Neg {
   function neg(p) {
-    return Pair(neg (fst(p)), neg(snd (p)));
+    return Pair(Neg.neg (fst(p)), Neg.neg(snd (p)));
   }
 }
 
@@ -49,5 +49,5 @@ contract NegPair {
     };
   }
 
-  function main() { return  fromB(neg(F)); }
+  function main() { return  fromB(Neg.neg(F)); }
 }

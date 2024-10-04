@@ -4,16 +4,15 @@ module Solcore.Frontend.Syntax.Name where
 import Data.Generics (Data, Typeable)
 import Data.String
 
-newtype Name 
-  = Name {unName :: String}
+data Name 
+  = Name String
+  | QualName Name String 
     deriving (Eq, Ord, Data, Typeable)
 
 instance Show Name where 
-  show = unName
+  show (Name s) = s 
+  show (QualName n s) 
+    = show n ++ "." ++ s 
 
 instance IsString Name where 
   fromString = Name
-
-newtype QualName 
-  = QualName { unQName :: [Name] }
-    deriving (Eq, Ord, Show, Data, Typeable)

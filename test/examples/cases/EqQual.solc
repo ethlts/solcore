@@ -18,3 +18,7 @@ instance word : Eq {
     };
   }
 }
+
+function foo (x) {
+  return Eq.eq (x, 0);
+}

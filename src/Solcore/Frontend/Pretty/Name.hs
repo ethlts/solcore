@@ -4,7 +4,7 @@ import Solcore.Frontend.Syntax.Name
 
 
 instance Pretty Name where
-  ppr = text . unName
+  ppr (QualName n s) = ppr n <> text "." <> text s 
+  ppr (Name s) = text s
 
-instance Pretty QualName where
-  ppr = dotSep . map ppr . unQName
+

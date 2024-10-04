@@ -239,7 +239,7 @@ tcInstance :: Instance Name -> TcM (Instance Id)
 tcInstance idecl@(Instance ctx n ts t funs) 
   = do
       checkCompleteInstDef n (map (sigName . funSignature) funs) 
-      funs' <- buildSignatures n ts t funs  
+      funs' <- buildSignatures n ts t funs `wrapError` idecl 
       (funs1, pss', ts') <- unzip3 <$> mapM tcFunDef  funs' `wrapError` idecl
       withCurrentSubst (Instance ctx n ts t funs1)
 
@@ -258,34 +258,38 @@ buildSignatures :: Name -> [Ty] -> Ty -> [FunDef Name] -> TcM [FunDef Name]
 buildSignatures n ts t funs 
   = do 
       cpred <- classpred <$> askClassInfo n 
-      sm <- matchPred cpred (InCls n t ts) 
-      schs <- mapM (askEnv . sigName . funSignature) funs 
+      sm <- matchPred cpred (InCls n t ts)
+      let qname m = QualName n (pretty m)
+      schs <- mapM (askEnv . qname . sigName . funSignature) funs
       let  
           app (Forall vs (_ :=> t1)) = apply sm t1
           tinsts = map app schs
-      zipWithM buildSignature tinsts funs 
+      zipWithM (buildSignature n) tinsts funs 
 
-buildSignature :: Ty -> FunDef Name -> TcM (FunDef Name)
-buildSignature t (FunDef sig bd)
+buildSignature :: Name -> Ty -> FunDef Name -> TcM (FunDef Name)
+buildSignature n t (FunDef sig bd)
   = do 
       let (args, ret) = splitTy t 
-          sig' = typeSignature args ret sig
+          sig' = typeSignature n args ret sig
       pure (FunDef sig' bd)
 
-typeSignature :: [Ty] -> Ty -> Signature Name -> Signature Name 
-typeSignature args ret sig 
-  = sig { sigParams = zipWith paramType args (sigParams sig)
+typeSignature :: Name -> [Ty] -> Ty -> Signature Name -> Signature Name 
+typeSignature nm args ret sig 
+  = sig { 
+          sigName = QualName nm (pretty $ sigName sig)
+        , sigParams = zipWith paramType args (sigParams sig)
         , sigReturn = Just ret
         }
     where 
-      paramType t (Typed n _) = Typed n t
-      paramType t (Untyped n) = Typed n t 
+      paramType t (Typed n _) = Typed n (skolemize t)
+      paramType t (Untyped n) = Typed n (skolemize t)
 
 tcClass :: Class Name -> TcM (Class Id)
 tcClass iclass@(Class ctx n vs v sigs) 
   = do
       let ns = map sigName sigs
-      schs <- mapM askEnv ns 
+          qs = map (QualName n . pretty) ns 
+      schs <- mapM askEnv qs `wrapError` iclass 
       sigs' <- mapM tcSig (zip sigs schs) `wrapError` iclass
       pure (Class ctx n vs v sigs')
 
@@ -346,14 +350,15 @@ isLambdaGenerated n
 tcFunDef :: FunDef Name -> TcM (FunDef Id, [Pred], Ty)
 tcFunDef d@(FunDef sig bd) 
   = withLocalEnv do
-      -- checking if the function isn't defined 
-      (params', schs, ts) <- tcArgs (sigParams sig) `wrapError` d
-      (bd', ps1, t') <- withLocalCtx schs (tcBody bd)
-      sch <- askEnv (sigName sig)
+      -- checking if the function isn't defined
+      (params', schs, ts) <- tcArgs (sigParams sig)
+      (bd', ps1, t') <- withLocalCtx schs (tcBody bd) `wrapError` d
+      sch <- askEnv (sigName sig) `wrapError` d 
       (ps :=> t) <- freshInst sch
       let t1 = foldr (:->) t' ts
       sch' <- generalize (ps1, t1)
       s <- match t t1 `wrapError` d
+      extSubst s 
       subsCheck sch sch'
       rTy <- withCurrentSubst t'
       let sig' = Signature (sigVars sig) 
@@ -422,22 +427,22 @@ addClassInfo n ar ms p
                                        (classTable env)})
 
 addClassMethod :: Pred -> Signature Name -> TcM ()
-addClassMethod p@(InCls _ _ _) sig@(Signature _ ctx f ps t) 
+addClassMethod p@(InCls c _ _) sig@(Signature _ ctx f ps t) 
   = do
       tps <- mapM tyParam ps
       t' <- maybe freshTyVar pure t
       let ty = funtype tps t'
           vs = fv ty
           ctx' = [p] `union` ctx
-      r <- maybeAskEnv f 
+      r <- maybeAskEnv f
       unless (isNothing r) (duplicatedClassMethod f `wrapError` sig)
-      extEnv f (Forall vs (ctx' :=> ty))
+      extEnv (QualName c (pretty f)) (Forall vs (ctx' :=> ty))
 addClassMethod p@(_ :~: _) (Signature _ _ n _ _) 
   = throwError $ unlines [
                     "Invalid constraint:"
                   , pretty p 
                   , "in class method:"
-                  , unName n
+                  , pretty n
                   ]
 
 -- checking instances and adding them in the environment
@@ -501,7 +506,7 @@ checkCoverage cn ts t
       unless (null undetermined) $ 
           throwError (unlines [
             "Coverage condition fails for class:"
-          , unName cn 
+          , pretty cn 
           , "- the type:"
           , pretty t 
           , "does not determine:"
@@ -509,14 +514,15 @@ checkCoverage cn ts t
           ])
 
 checkMethod :: Pred -> FunDef Name -> TcM () 
-checkMethod ih@(InCls n t ts) (FunDef sig _) 
+checkMethod ih@(InCls n t ts) d@(FunDef sig _) 
   = do
       -- getting current method signature in class
-      st@(Forall _ (qs :=> ty)) <- askEnv (sigName sig)
+      let qn = QualName n (show (sigName sig))
+      st@(Forall _ (qs :=> ty)) <- askEnv qn `wrapError` d 
       p <- maybeToTcM (unwords [ "Constraint for"
-                               , unName n
+                               , show n
                                , "not found in type of"
-                               , unName $ sigName sig])
+                               , show $ sigName sig])
                       (findPred n qs)
       -- matching substitution of instance head and class predicate
       _ <- liftEither (matchPred p ih) `wrapError` ih

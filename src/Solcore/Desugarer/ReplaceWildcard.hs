@@ -101,7 +101,7 @@ type CompilerM a
                    (StateT Int IO))) a
 
 mkPrefix :: [Name] -> String 
-mkPrefix = intercalate "_" . map unName 
+mkPrefix = intercalate "_" . map show 
 
 inc :: CompilerM Int 
 inc = do 

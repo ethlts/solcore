@@ -30,7 +30,10 @@ pipeline = do
   let verbose = optVerbose opts
   content <- readFile (fileName opts)
   t' <- runParser content 
-  withErr t' $ \ ast -> do 
+  withErr t' $ \ ast -> do
+    when verbose $ do 
+      putStrLn "AST after name resolution"
+      putStrLn $ pretty ast 
     withErr (lambdaLifting ast) $ \ (ast2, dStrs) -> do 
       when verbose $ do 
         putStrLn "AST after lambda lifting"

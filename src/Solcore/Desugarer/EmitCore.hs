@@ -118,14 +118,14 @@ translateSig :: Signature Id -> EM (CoreName, [Core.Arg], Core.Type)
 translateSig sig@(Signature vs ctxt n args (Just ret)) = do
   dataTable <- gets ecDT
   -- debug ["translateSig ", show sig]
-  let name = unName n
+  let name = show n
   coreTyp <- translateType ret
   coreArgs <- mapM translateArg args
   return (name, coreArgs, coreTyp)
 translateSig sig = errors ["No return type in ", show sig]
 
 translateArg :: Param Id -> EM Core.Arg
-translateArg p =  Core.TArg (unName n) <$> translateType t
+translateArg p =  Core.TArg (show n) <$> translateType t
     where Id n t = getParamId p
 
 getParamId :: Param Id -> Id
@@ -250,7 +250,7 @@ emitStmt (Var i := e) = do
     return (stmts ++ assign)
 
 emitStmt (Let (Id name ty) mty mexp ) = do
-    let coreName = unName name
+    let coreName = show name
     coreTy <- translateType ty
     let alloc = [Core.SAlloc coreName coreTy]
     case mexp of
@@ -315,7 +315,7 @@ emitSumMatch allCons scrutinee alts = do
     -- TODO: build branch list in order matching allCons
     -- by inserting them into a map and then outputting in order
     -- take default branch from last equation into account
-    let noMatch c = [Core.SRevert ("no match for: "++unName c)]
+    let noMatch c = [Core.SRevert ("no match for: "++ show c)]
     debug ["emitMatch: allCons ", show allConNames]
     let defaultBranchMap = Map.fromList [(c, noMatch c) | c <- allConNames]
     branches <- emitEqns alts
@@ -434,7 +434,7 @@ concatMapM :: (Monad f) => (a -> f [b]) -> [a] -> f [b]
 concatMapM f xs = concat <$> mapM f xs
 
 unwrapId :: Id -> CoreName
-unwrapId = unName . idName
+unwrapId = show . idName
 
 unwrapTyvar :: Tyvar -> CoreName
-unwrapTyvar (TVar n _) = unName n
+unwrapTyvar (TVar n _) = show n

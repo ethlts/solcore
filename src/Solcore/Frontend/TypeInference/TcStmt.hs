@@ -29,8 +29,8 @@ tcStmt e@(lhs := rhs)
   = do 
       (lhs1, ps1, t1) <- tcExp lhs
       (rhs1, ps2, t2) <- tcExp rhs
-      s <- match t2 t1
-      extSubst s 
+      s <- match t2 t1 `wrapError` e
+      extSubst s
       pure (lhs1 := rhs1, apply s $ ps1 ++ ps2, unit)
 tcStmt e@(Let n mt me)
   = do
@@ -38,7 +38,7 @@ tcStmt e@(Let n mt me)
                       (Just t, Just e1) -> do
                         (e', ps1, t1) <- tcExp e1
                         kindCheck t1 `wrapError` e
-                        s <- match t1 t
+                        s <- match t1 t `wrapError` e
                         extSubst s
                         pure (Just e', apply s ps1, apply s t1)
                       (Just t, Nothing) -> do 
@@ -133,7 +133,7 @@ tiPat p@(PCon n ps)
       -- typing parameters 
       (ps1, ts, lctxs) <- unzip3 <$> mapM tiPat ps
       -- asking type from environment 
-      st <- askEnv n
+      st <- askEnv n `wrapError` p
       (ps' :=> tc) <- freshInst st
       tr <- freshTyVar
       s <- unify tc (funtype ts tr) `wrapError` p
@@ -172,7 +172,7 @@ tcExp e@(Con n es)
       -- typing parameters 
       (es', pss, ts) <- unzip3 <$> mapM tcExp es 
       -- getting the type from the environment 
-      sch <- askEnv n 
+      sch <- askEnv n `wrapError` e 
       (ps :=> t) <- freshInst sch
       -- unifying infered parameter types
       t' <- freshTyVar
@@ -194,8 +194,8 @@ tcExp (FieldAccess (Just e) n)
       s <- askField tn n 
       (ps' :=> t') <- freshInst s 
       pure (FieldAccess (Just e') (Id n t'), ps ++ ps', t')
-tcExp (Call me n args)
-  = tcCall me n args 
+tcExp ex@(Call me n args)
+  = tcCall me n args `wrapError` ex
 tcExp e@(Lam args bd _)
   = do 
       (args', schs, ts') <- tcArgs args 
@@ -271,7 +271,7 @@ tcCall Nothing n args
       (ps :=> t) <- freshInst s
       t' <- freshTyVar
       (es', pss', ts') <- unzip3 <$> mapM tcExp args
-      s' <- unify t (foldr (:->) t' ts')
+      s' <- unify (foldr (:->) t' ts') t
       let ps' = foldr union [] (ps : pss')
           t1 = foldr (:->) t' ts'
       withCurrentSubst (Call Nothing (Id n t1) es', ps', t')
@@ -282,7 +282,7 @@ tcCall (Just e) n args
       (ps1 :=> t) <- freshInst s
       t' <- freshTyVar
       (es', pss', ts') <- unzip3 <$> mapM tcExp args 
-      s' <- unify t (foldr (:->) t' ts')
+      s' <- unify (foldr (:->) t' ts') t
       let ps' = foldr union [] ((ps ++ ps1) : pss')
       withCurrentSubst (Call (Just e') (Id n t') es', ps', t')
 

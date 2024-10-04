@@ -47,7 +47,7 @@ data Pragma
     } deriving (Eq, Ord, Show, Data, Typeable)
 
 newtype Import 
-  = Import { unImport :: QualName }
+  = Import { unImport :: Name }
     deriving (Eq, Ord, Show, Data, Typeable)
     
 -- definition of the contract structure 

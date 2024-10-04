@@ -22,7 +22,7 @@ spec
               [
                 runTestForFile "00answer.solc" specFolder
               , runTestForFile "01id.solc" specFolder
-              , expectFail $ runTestForFile "02.nid.solc" specFolder
+              , expectFail $ runTestForFile "02nid.solc" specFolder
               , runTestForFile "031maybe.solc" specFolder
               , runTestForFile "032simplejoin.solc" specFolder
               , runTestForFile "033join.solc" specFolder
@@ -66,7 +66,7 @@ cases
               , runTestForFile "BoolNot.solc" caseFolder
               , expectFail $ runTestForFile "Compose.solc" caseFolder
               , expectFail $ runTestForFile "DupFun.solc" caseFolder
-              , expectFail $ runTestForFile "DuplicateFun.solc" caseFolder
+              , runTestForFile "DuplicateFun.solc" caseFolder
               , runTestForFile "EitherModule.solc" caseFolder
               , runTestForFile "Id.solc" caseFolder
               , runTestForFile "IncompleteInstDef.solc" caseFolder 
@@ -90,6 +90,8 @@ cases
               , runTestForFile "SimpleLambda.solc" caseFolder
               , runTestForFile "SingleFun.solc" caseFolder
               , runTestForFile "assembly.solc" caseFolder
+              , runTestForFile "join.solc" caseFolder
+              , runTestForFile "EqQual.solc" caseFolder 
               , expectFail $ runTestForFile "joinErr.solc" caseFolder 
               ]
     where 

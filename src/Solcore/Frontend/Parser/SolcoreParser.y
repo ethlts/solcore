@@ -75,7 +75,7 @@ ImportList : ImportList Import                     { $2 : $1 }
            | {- empty -}                           { [] }
 
 Import :: { Import }
-Import : 'import' QualName ';'                     { Import (QualName $2) }
+Import : 'import' Name ';'                         { Import $2 }
 
 TopDeclList :: { [TopDecl] }
 TopDeclList : TopDecl TopDeclList                  { $1 : $2 }
@@ -329,12 +329,12 @@ LamType : '(' TypeCommaList ')' '->' Type          {($2, $5)}
 Var :: { Ty }
 Var : Name                                         {TyCon $1 []}  
 
-QualName :: { [Name] }  
-QualName : Name                                     { [$1] }
-         | QualName '.' Name                        { $3 : $1 }
+Name :: { Name }  
+Name : identifier                               { Name $1 }
+     | QualName %shift                          { QualName (fst $1) (snd $1) }
 
-Name :: { Name }
-Name : identifier                                  { Name $1 }
+QualName :: { (Name, String) }
+QualName : QualName '.' identifier              { (QualName (fst $1) (snd $1), $3)}
 
 -- Yul statments and blocks
 
