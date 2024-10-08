@@ -92,7 +92,8 @@ cases
               , runTestForFile "assembly.solc" caseFolder
               , runTestForFile "join.solc" caseFolder
               , runTestForFile "EqQual.solc" caseFolder 
-              , expectFail $ runTestForFile "joinErr.solc" caseFolder 
+              , expectFail $ runTestForFile "joinErr.solc" caseFolder
+              , runTestForFile "tyexp.solc" caseFolder 
               ]
     where 
       caseFolder = "./test/examples/cases"

@@ -248,6 +248,8 @@ instance Pretty a => Pretty (Exp a) where
       lbrace $$ 
       nest 3 (vcat (map ppr bd)) $$
       rbrace
+  ppr (TyExp e ty) 
+    = ppr e <+> text ":" <+> ppr ty
 
 pprE :: Pretty a => Maybe (Exp a) -> Doc  
 pprE Nothing = ""

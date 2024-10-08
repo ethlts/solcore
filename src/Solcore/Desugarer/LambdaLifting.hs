@@ -122,6 +122,8 @@ instance LiftLambda (Exp Name) where
         (e,d, arg, res) <- createLambdaType free
         createFunction arg res free d ps bd mt
         pure e
+  liftLambda e@(TyExp e1 ty) 
+    = flip TyExp ty <$> liftLambda e1  
   liftLambda d = pure d 
 
 desugarCall :: Maybe (Exp Name) -> 
@@ -334,4 +336,5 @@ instance Vars (Exp Name) where
   vars (Call (Just e) n es) = [n] `union` vars (e : es)
   vars (Call Nothing n es) = [n] `union` vars es 
   vars (Lam ps bd _) = vars bd \\ vars ps
+  vars (TyExp e _) = vars e 
   vars _ = []

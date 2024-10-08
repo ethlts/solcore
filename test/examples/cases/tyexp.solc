@@ -1,0 +1,4 @@
+function main () {
+  let y = 0 : word ;
+  return y;
+}

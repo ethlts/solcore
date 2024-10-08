@@ -191,9 +191,10 @@ data Param
 
 data Exp 
   = Lit Literal                            -- literal 
-  | ExpName (Maybe Exp) Name [Exp]        -- function call, field access
+  | ExpName (Maybe Exp) Name [Exp]         -- function call, field access
                                            -- constructor or variable 
   | Lam [Param] Body (Maybe Ty)            -- lambda-abstraction
+  | TyExp Exp Ty                           -- type annotation expression 
   deriving (Eq, Ord, Show, Data, Typeable)
 
 -- pattern matching equations 

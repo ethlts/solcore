@@ -36,6 +36,7 @@ data Exp a
   | Lit Literal                        -- literal 
   | Call (Maybe (Exp a)) a [Exp a]     -- function call
   | Lam [Param a] (Body a) (Maybe Ty)  -- lambda-abstraction
+  | TyExp (Exp a) Ty                   -- type annotated expression
   deriving (Eq, Ord, Show, Data, Typeable)
 
 -- pattern matching equations 

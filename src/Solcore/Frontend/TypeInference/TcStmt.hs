@@ -205,6 +205,15 @@ tcExp e@(Lam args bd _)
           (ps1,t1) = apply s (ps, funtype ts' t')
           e' = everywhere (mkT (applyI s)) (Lam args' bd' (Just t1))
       pure (e', ps1, t1)
+tcExp e1@(TyExp e ty)
+  = do 
+      kindCheck ty `wrapError` e1 
+      (e', ps, ty') <- tcExp e 
+      let ty1 = skolemize ty 
+      s <- match ty' ty  `wrapError` e1 
+      extSubst s 
+      pure (TyExp e' ty, apply s ps, ty)
+
 
 applyI :: Subst -> Ty -> Ty 
 applyI s = apply s

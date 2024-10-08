@@ -273,7 +273,13 @@ Expr : Name FunArgs                                {ExpName Nothing $1 $2}
      | Literal                                     {Lit $1}
      | '(' Expr ')'                                {$2}
      | Expr '.' Name FunArgs                       {ExpName (Just $1) $3 $4}
-     | 'lam' '(' ParamList ')' OptRetTy Body       {Lam $3 $6 $5} 
+     | 'lam' '(' ParamList ')' OptRetTy Body       {Lam $3 $6 $5}
+     | Expr ':' Type                               {TyExp $1 $3}
+     | '(' TupleArgs ')'                           {tupleExp $2}
+
+TupleArgs :: { [Exp] }
+TupleArgs : Expr ',' Expr                          {[$1, $3]}
+          | Expr ',' TupleArgs                     {$1 : $3}
 
 FunArgs :: {[Exp]}
 FunArgs : '(' ExprCommaList ')'                    {$2}
@@ -321,7 +327,7 @@ Literal : number                                   {IntLit $ toInteger $1}
 
 Type :: { Ty }
 Type : Name OptTypeParam                            {TyCon $1 $2}
-     | LamType                                     {uncurry funtype $1}
+     | LamType                                      {uncurry funtype $1}
 
 LamType :: {([Ty], Ty)}
 LamType : '(' TypeCommaList ')' '->' Type          {($2, $5)}
@@ -418,6 +424,14 @@ OptSemi : ';'                                      { () }
         | {- empty -}                              { () }
 
 {
+pairExp :: Exp -> Exp -> Exp 
+pairExp e1 e2 = ExpName Nothing (Name "pair") [e1, e2]
+
+tupleExp :: [Exp] -> Exp 
+tupleExp [t1] = t1
+tupleExp [t1, t2] = pairExp t1 t2 
+tupleExp (t1 : ts) = pairExp t1 (tupleExp ts)
+
 parseError (Token (line, col) lexeme)
   = alexError $ "Parse error while processing lexeme: " ++ show lexeme
                 ++ "\n at line " ++ show line ++ ", column " ++ show col

@@ -376,7 +376,9 @@ instance Elab S.Exp where
   elab (S.Lit l) 
     = Lit <$> elab l 
   elab (S.Lam ps bd mt) 
-    = Lam <$> elab ps <*> elab bd <*> elab mt 
+    = Lam <$> elab ps <*> elab bd <*> elab mt
+  elab (S.TyExp e t) 
+    = TyExp <$> elab e <*> elab t 
   elab (S.ExpName me n es) 
     = do 
         me' <- elab me 
