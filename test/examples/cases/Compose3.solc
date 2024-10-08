@@ -1,0 +1,17 @@
+contract Compose {
+  function compose(f,g) {
+    return lam (x) {
+      return f(g(x));
+    } ;
+  }
+
+  function id(x) { return x; }
+
+  function idid() { return compose(id,id); }
+
+  function apply1(f, a) { return f(a); }
+
+  function main() {
+    return apply1(compose(id, id), 42);
+  }
+}
