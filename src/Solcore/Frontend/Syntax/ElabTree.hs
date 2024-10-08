@@ -214,11 +214,17 @@ instance Elab S.Ty where
         if isTy then pure $ TyCon n ts' 
           else if null ts then 
             pure $ TyVar (TVar n False)
+          else if isArrow n then 
+            pure $ TyCon n ts'
           else throwError $ 
               unlines ["Undefined type:"
                       , pretty n
                       , "!!"
                       ]
+
+isArrow :: Name -> Bool 
+isArrow (Name s) = s == "->"
+isArrow _ = False 
 
 instance Elab S.Pred where 
   type Res S.Pred = Pred

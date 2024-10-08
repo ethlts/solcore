@@ -70,7 +70,8 @@ runParser content = do
   let r1 = runAlex content parser 
   case r1 of 
     Left err -> pure $ Left err 
-    Right t -> buildAST t
+    Right t -> do 
+      buildAST t
 
 
 

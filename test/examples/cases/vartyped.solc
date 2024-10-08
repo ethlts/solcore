@@ -1,0 +1,4 @@
+function foo () {
+  let f : (word) -> word = lam (x) { return x ; } ;
+  f(1);
+}
