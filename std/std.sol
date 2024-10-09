@@ -1,25 +1,24 @@
-/*
-   Assumptions
-   - We don't have built in literals for Yul words
-*/
+// booleans
 
+data bool = true | false;
 
-data Bool = True | False;
-
-function and(x: Bool, y: Bool) -> Bool {
+// TODO: this should short circuit. probably needs some compiler magic to do so.
+function and(x: bool, y: bool) -> bool {
     match x, y {
-    | True, y => return y;
-    | False, _ => return False;
+    | true, y => return y;
+    | false, _ => return false;
     };
 }
 
-function or(x: Bool, y: Bool) -> Bool {
+// TODO: this should short circuit. probably needs some compiler magic to do so.
+function or(x: bool, y: bool) -> bool {
     match x, y {
-    | True, _ => return True;
-    | False, y => return y;
+    | true, _ => return true;
+    | false, y => return y;
     };
 }
 
+// Pairs
 
 data Pair(a, b) = Pair(a, b);
 
@@ -35,7 +34,7 @@ function snd(p: Pair(a, b)) -> b {
     };
 }
 
-// Basics
+//
 
 data Proxy(t) = Proxy;
 
@@ -126,10 +125,10 @@ class t:EncodeInto {
 class t:Encode {
     // TODO: is the following ever needed??
     // is the abi representation of `t` dynamically sized?
-    // function isDynamicallySized(x:Proxy(t)) -> Bool;
+    // function isDynamicallySized(x:Proxy(t)) -> bool;
 
     // does `t` (or any of it's children) contain a dynamic type?
-    function shouldEncodeDynamic(x:Proxy(t)) -> Bool;
+    function shouldEncodeDynamic(x:Proxy(t)) -> bool;
     // how big is the head portion of the ABI representation of `t`?
     function headSize(x:Proxy(t)) -> word;
 }
@@ -154,7 +153,7 @@ forall t:Encode, t:EncodeInto . function encode(val:t) -> Memory(Bytes) {
 }
 
 instance (l:Encode, r:Encode) => Pair(l,r):Encode {
-    function shouldEncodeDynamic(x : Proxy(Pair(l,r))) -> Bool {
+    function shouldEncodeDynamic(x : Proxy(Pair(l,r))) -> bool {
         let l: Proxy(l) = Proxy;
         let r: Proxy(r) = Proxy;
         return and(Encode.shouldEncodeDynamic(l), Encode.shouldEncodeDynamic(l));
@@ -162,11 +161,11 @@ instance (l:Encode, r:Encode) => Pair(l,r):Encode {
 
     function headSize(x : Proxy(Pair(l,r))) -> word {
         match Encode.shouldEncodeDynamic(x) {
-        | True =>
+        | true =>
             let res;
             assembly { res := 32; };
             return res;
-        | False =>
+        | false =>
             let l: Proxy(l) = Proxy;
             let r: Proxy(r) = Proxy;
             let lsize = Encode.headSize(l);
@@ -203,8 +202,8 @@ instance Uint256 : ValueTy {
 }
 
 instance Uint256:Encode {
-    function shouldEncodeDynamic(x) -> Bool {
-        return False;
+    function shouldEncodeDynamic(x) -> bool {
+        return false;
     }
 
     function headSize(x) -> word {
