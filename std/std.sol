@@ -134,23 +134,24 @@ class t:Encode {
     function headSize(x:Proxy(t)) -> word;
 }
 
-//forall t:Encode, t:EncodeInto . function encode(val:t) -> Memory(Bytes) {
-//    let p : Proxy(t);
-//    let hdSz = Encode.headSize(p);
-//    let ptr : word = get_free_memory();
-//    let head : word;
-//    let tail : word;
-//    assembly {
-//        head := add(ptr, 32);
-//        tail := add(head, hdSz);
-//    };
-//    let tl = snd(EncodeInto.encodeInto(val,head,tail));
-//    set_free_memory(tl);
-//    assembly {
-//        mstore(ptr, sub(tl, head))
-//    };
-//    return Memory(ptr);
-//}
+forall t:Encode, t:EncodeInto . function encode(val:t) -> Memory(Bytes) {
+    let p : Proxy(t);
+    let hdSz = Encode.headSize(p);
+    let ptr : word = get_free_memory();
+    let head : word;
+    let tail : word;
+    assembly {
+        head := add(ptr, 32);
+        tail := add(head, hdSz);
+    };
+    let tl = snd(EncodeInto.encodeInto(val,head,tail));
+    set_free_memory(tl);
+    assembly {
+        mstore(ptr, sub(tl, head))
+    };
+    let mem : Memory(Bytes) = Memory(ptr);
+    return mem;
+}
 
 instance (l:Encode, r:Encode) => Pair(l,r):Encode {
     function shouldEncodeDynamic(x : Proxy(Pair(l,r))) -> Bool {
